@@ -24,9 +24,12 @@ const MOBILE_PIPE_ENTRY_DEPTH_PX = 14;
 const MOBILE_AIM_MIN_Y = 130;
 const MOBILE_AIM_BOTTOM_ZONE_PX = 700;
 const MOBILE_TOP_BOUNCY_SQUARE_TOP = 0;
-const MOBILE_MEGA_BOUNCY_X_PCT_DEFAULT = 50;
-const MOBILE_MEGA_BOUNCY_Y_PCT_DEFAULT = 46;
-const MOBILE_MEGA_BOUNCY_R = 52;
+const MOBILE_MEGA_BOUNCY_R = 44;
+const MOBILE_MEGA_BOUNCY_COUNT = 3;
+const MOBILE_MEGA_BOUNCY_X_MIN_PCT = 12;
+const MOBILE_MEGA_BOUNCY_X_MAX_PCT = 88;
+const MOBILE_MEGA_BOUNCY_Y_MIN_PCT = 34;
+const MOBILE_MEGA_BOUNCY_Y_MAX_PCT = 58;
 const MOBILE_BUMPER_R = 22;
 const MOBILE_BUMPERS_BASE = [
   { xPct: 5,  yPct: 44 },
@@ -43,10 +46,11 @@ const MOBILE_BUMPERS_BASE = [
   { xPct: 92, yPct: 52 },
 ];
 let mobileBumperLayout = MOBILE_BUMPERS_BASE.map((b) => ({ ...b }));
-let mobileMegaBouncyPos = {
-  xPct: MOBILE_MEGA_BOUNCY_X_PCT_DEFAULT,
-  yPct: MOBILE_MEGA_BOUNCY_Y_PCT_DEFAULT,
-};
+let mobileMegaBouncyPositions = [
+  { xPct: 34, yPct: 46 },
+  { xPct: 50, yPct: 46 },
+  { xPct: 66, yPct: 46 },
+];
 const MOBILE_PIPE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
 
 function resize() {
@@ -89,6 +93,7 @@ const RESET_BALL_BTN_DELAY_MS = 6000;
 const LEVEL_2_POINTS = 10;
 const LEVEL_3_POINTS = 20;
 const LEVEL_4_POINTS = 30;
+const DESKTOP_MEGA_BOUNCY_R = 44;
 
 const canImage = new Image();
 canImage.src = 'can.jpg';
@@ -99,6 +104,12 @@ function platTop() { return gY() - PLAT_H; }
 function forkL()   { return { x: SLING_X - FORK_SPREAD, y: platTop() - FORK_H }; }
 function forkR()   { return { x: SLING_X + FORK_SPREAD, y: platTop() - FORK_H }; }
 function restPos() { return { x: SLING_X, y: platTop() - FORK_H + 5 }; }
+function sideWallH() {
+  const launchedLongEnough = launched &&
+    wallGrowthStartedAtMs > 0 &&
+    performance.now() - wallGrowthStartedAtMs >= 500;
+  return SIDE_WALL_H * (launchedLongEnough ? 3 : 1);
+}
 
 // --- State ---
 let bx, by, bvx, bvy;
@@ -119,8 +130,14 @@ let gameOver = false;
 let restartBtn = { x: 0, y: 0, w: 0, h: 0 };
 let resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
 let shotStartedAtMs = 0;
+let wallGrowthStartedAtMs = 0;
 let levelNoticeText = '';
 let levelNoticeUntilMs = 0;
+let desktopMegaBouncyPositions = [
+  { xT: 0.34, yT: 0.45 },
+  { xT: 0.5, yT: 0.45 },
+  { xT: 0.66, yT: 0.45 },
+];
 let mobileDrop = {
   x: -120,
   y: -120,
@@ -177,6 +194,11 @@ function restartGame() {
   gameOver = false;
   levelNoticeText = '';
   levelNoticeUntilMs = 0;
+  desktopMegaBouncyPositions = [
+    { xT: 0.34, yT: 0.45 },
+    { xT: 0.5, yT: 0.45 },
+    { xT: 0.66, yT: 0.45 },
+  ];
   showHint = true;
   resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   resetBird();
@@ -194,6 +216,7 @@ function resetBird() {
   scoredThisShot = false;
   lockedPipeIndex = -1;
   shotStartedAtMs = 0;
+  wallGrowthStartedAtMs = 0;
   resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   aimX = bx;
   aimY = by;
@@ -246,34 +269,94 @@ function getMobileBumpers() {
   }));
 }
 
-function getMobileMegaBouncy() {
-  if (unlockedLevel < 3) return null;
+function getMobileMegaBouncies() {
+  if (unlockedLevel < 3) return [];
 
-  return {
-    x: (mobileMegaBouncyPos.xPct / 100) * window.innerWidth,
-    y: (mobileMegaBouncyPos.yPct / 100) * window.innerHeight,
+  return mobileMegaBouncyPositions.map((p) => ({
+    x: (p.xPct / 100) * window.innerWidth,
+    y: (p.yPct / 100) * window.innerHeight,
     r: MOBILE_MEGA_BOUNCY_R,
-  };
+  }));
 }
 
 function renderMobileMegaBouncy() {
   if (!mobileMegaBouncyEl) return;
-  const orb = mobileMegaBouncyEl.querySelector('.mobileMegaBouncyOrb');
-  if (!orb) return;
-  orb.style.left = `${mobileMegaBouncyPos.xPct}%`;
-  orb.style.top = `${mobileMegaBouncyPos.yPct}%`;
+  const orbs = mobileMegaBouncyEl.querySelectorAll('.mobileMegaBouncyOrb');
+  orbs.forEach((orb, i) => {
+    const pos = mobileMegaBouncyPositions[i] || mobileMegaBouncyPositions[mobileMegaBouncyPositions.length - 1];
+    if (!pos) return;
+    orb.style.left = `${pos.xPct}%`;
+    orb.style.top = `${pos.yPct}%`;
+  });
 }
 
 function randomizeMobileMegaBouncy() {
-  const minXPct = 12;
-  const maxXPct = 88;
-  const minYPct = 34;
-  const maxYPct = 58;
-  mobileMegaBouncyPos = {
-    xPct: Math.round((minXPct + Math.random() * (maxXPct - minXPct)) * 10) / 10,
-    yPct: Math.round((minYPct + Math.random() * (maxYPct - minYPct)) * 10) / 10,
-  };
+  const next = [];
+  const minDistPct = 18;
+  for (let i = 0; i < MOBILE_MEGA_BOUNCY_COUNT; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 140; tries++) {
+      const xPct = Math.round((MOBILE_MEGA_BOUNCY_X_MIN_PCT + Math.random() * (MOBILE_MEGA_BOUNCY_X_MAX_PCT - MOBILE_MEGA_BOUNCY_X_MIN_PCT)) * 10) / 10;
+      const yPct = Math.round((MOBILE_MEGA_BOUNCY_Y_MIN_PCT + Math.random() * (MOBILE_MEGA_BOUNCY_Y_MAX_PCT - MOBILE_MEGA_BOUNCY_Y_MIN_PCT)) * 10) / 10;
+      const tooClose = next.some((c) => Math.hypot(xPct - c.xPct, yPct - c.yPct) < minDistPct);
+      if (tooClose) continue;
+      next.push({ xPct, yPct });
+      placed = true;
+      break;
+    }
+    if (!placed) {
+      const fallback = mobileMegaBouncyPositions[i] || mobileMegaBouncyPositions[mobileMegaBouncyPositions.length - 1] || { xPct: 50, yPct: 46 };
+      next.push({ ...fallback });
+    }
+  }
+  mobileMegaBouncyPositions = next;
+  resolveMobileBumperMegaCollisions();
   renderMobileMegaBouncy();
+}
+
+function resolveMobileBumperMegaCollisions() {
+  if (unlockedLevel < 2) return;
+
+  const megas = getMobileMegaBouncies();
+  if (!megas.length) return;
+
+  const minDistPct = 13;
+  const minXPct = 5;
+  const maxXPct = 92;
+  const minYPct = 28;
+  const maxYPct = 66;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  mobileBumperLayout = mobileBumperLayout.map((current, i, arr) => {
+    const currentXPx = (current.xPct / 100) * vw + MOBILE_BUMPER_X_OFFSET_PX;
+    const currentYPx = (current.yPct / 100) * vh;
+    const overlapsMega = megas.some((mega) => Math.hypot(currentXPx - mega.x, currentYPx - mega.y) < mega.r + MOBILE_BUMPER_R + 6);
+    if (!overlapsMega) return current;
+
+    for (let tries = 0; tries < 120; tries++) {
+      const t = Math.random();
+      const edgeBias = Math.random() < 0.6 ? (t < 0.5 ? t * t : 1 - (1 - t) * (1 - t)) : t;
+      const xPct = Math.round((minXPct + edgeBias * (maxXPct - minXPct)) * 10) / 10;
+      const yPct = Math.round((minYPct + Math.random() * (maxYPct - minYPct)) * 10) / 10;
+      const xPx = (xPct / 100) * vw + MOBILE_BUMPER_X_OFFSET_PX;
+      const yPx = (yPct / 100) * vh;
+      const collidesMega = megas.some((mega) => Math.hypot(xPx - mega.x, yPx - mega.y) < mega.r + MOBILE_BUMPER_R + 6);
+      if (collidesMega) continue;
+
+      const tooClose = arr.some((other, idx) => {
+        if (idx === i) return false;
+        return Math.hypot(xPct - other.xPct, yPct - other.yPct) < minDistPct;
+      });
+      if (tooClose) continue;
+
+      return { xPct, yPct };
+    }
+
+    return current;
+  });
+
+  renderMobileBumpers();
 }
 
 function getMobileTopBouncySquare() {
@@ -308,7 +391,7 @@ function randomizeMobileBumpers() {
   const maxYPct = 66;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const mega = getMobileMegaBouncy();
+  const megas = getMobileMegaBouncies();
 
   for (let i = 0; i < MOBILE_BUMPERS_BASE.length; i++) {
     let placed = false;
@@ -320,7 +403,7 @@ function randomizeMobileBumpers() {
       const tooClose = next.some((b) => Math.hypot(xPct - b.xPct, yPct - b.yPct) < minDistPct);
       const xPx = (xPct / 100) * vw + MOBILE_BUMPER_X_OFFSET_PX;
       const yPx = (yPct / 100) * vh;
-      const collidesMega = mega && Math.hypot(xPx - mega.x, yPx - mega.y) < mega.r + MOBILE_BUMPER_R + 6;
+      const collidesMega = megas.some((mega) => Math.hypot(xPx - mega.x, yPx - mega.y) < mega.r + MOBILE_BUMPER_R + 6);
       if (tooClose || collidesMega) continue;
       next.push({ xPct, yPct });
       placed = true;
@@ -366,6 +449,7 @@ function resetMobileDropBall() {
   mobileDrop.inPipeIndex = -1;
   mobileActivePointerId = null;
   shotStartedAtMs = 0;
+  wallGrowthStartedAtMs = 0;
   launched = false;
   renderMobileDropBall();
 }
@@ -523,16 +607,17 @@ function drawPlatform() {
 
 function drawSideWall() {
   const x = PLAT_X + PLAT_W + SIDE_WALL_GAP;
-  const y = gY() - SIDE_WALL_H;
+  const h = sideWallH();
+  const y = gY() - h;
 
   ctx.fillStyle = '#5c3a1a';
-  ctx.fillRect(x, y, SIDE_WALL_W, SIDE_WALL_H + GROUND_H);
+  ctx.fillRect(x, y, SIDE_WALL_W, h + GROUND_H);
 
   ctx.fillStyle = '#7a4a1f';
   ctx.fillRect(x, y, SIDE_WALL_W, 8);
 
   ctx.fillStyle = '#3f2611';
-  ctx.fillRect(x + SIDE_WALL_W - 3, y, 3, SIDE_WALL_H + GROUND_H);
+  ctx.fillRect(x + SIDE_WALL_W - 3, y, 3, h + GROUND_H);
 }
 
 function getPipeLayout() {
@@ -569,6 +654,49 @@ function getBouncePads() {
   return pads;
 }
 
+function getDesktopMegaBouncyBounds() {
+  const layout = getPipeLayout();
+  const topY = gY() - PIPE_H;
+  const xMin = layout.startX + DESKTOP_MEGA_BOUNCY_R + 10;
+  const xMax = layout.startX + (layout.colors.length - 1) * (PIPE_W + layout.evenGap) + PIPE_W - DESKTOP_MEGA_BOUNCY_R - 10;
+  const yMin = Math.max(60, topY - 360);
+  const yMax = Math.max(yMin + 12, topY - 90);
+  return { xMin, xMax, yMin, yMax };
+}
+
+function getDesktopMegaBouncies() {
+  if (unlockedLevel < 3) return [];
+  const b = getDesktopMegaBouncyBounds();
+  return desktopMegaBouncyPositions.map((p) => ({
+    x: b.xMin + (b.xMax - b.xMin) * p.xT,
+    y: b.yMin + (b.yMax - b.yMin) * p.yT,
+    r: DESKTOP_MEGA_BOUNCY_R,
+  }));
+}
+
+function randomizeDesktopMegaBouncy() {
+  if (unlockedLevel < 3) return;
+  const next = [];
+  const minDistT = 0.2;
+  for (let i = 0; i < MOBILE_MEGA_BOUNCY_COUNT; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 120; tries++) {
+      const xT = Math.random();
+      const yT = Math.random();
+      const tooClose = next.some((p) => Math.hypot(xT - p.xT, yT - p.yT) < minDistT);
+      if (tooClose) continue;
+      next.push({ xT, yT });
+      placed = true;
+      break;
+    }
+    if (!placed) {
+      const fallback = desktopMegaBouncyPositions[i] || desktopMegaBouncyPositions[desktopMegaBouncyPositions.length - 1] || { xT: 0.5, yT: 0.45 };
+      next.push({ ...fallback });
+    }
+  }
+  desktopMegaBouncyPositions = next;
+}
+
 function getPipeReward(color) {
   if (color === '#77A8BB') return 0;
   if (color === '#FFC907') return 5;
@@ -582,13 +710,16 @@ function applyPipeOutcome(color) {
   setScore(score + reward);
   if (color === '#77A8BB') {
     waterCount += 5;
-  } else if (color === '#FFC907' || color === '#69DC69') {
+  } else if ((color === '#FFC907' || color === '#69DC69') && unlockedLevel >= 2) {
     randomizeMobileBumpers();
   }
-  if (reward > 0) {
-    randomizeMobileMegaBouncy();
-  }
   updateUnlockedLevel();
+  if (reward > 0) {
+    if (unlockedLevel >= 3) {
+      randomizeMobileMegaBouncy();
+      randomizeDesktopMegaBouncy();
+    }
+  }
   while (score >= nextWaterBonusAt) {
     waterCount += 1;
     nextWaterBonusAt += 10;
@@ -611,9 +742,12 @@ function getBumpers() {
   const gapCenters = layout.colors.slice(0, -1).map((_, i) => (
     layout.startX + i * (PIPE_W + layout.evenGap) + PIPE_W + layout.evenGap / 2
   ));
+  const megas = getDesktopMegaBouncies();
 
   function canPlace(x, y, r) {
-    return bumpers.every((b) => Math.hypot(x - b.x, y - b.y) > r + b.r + minPadding);
+    const clearBumpers = bumpers.every((b) => Math.hypot(x - b.x, y - b.y) > r + b.r + minPadding);
+    const clearMega = megas.every((mega) => Math.hypot(x - mega.x, y - mega.y) > r + mega.r + minPadding);
+    return clearBumpers && clearMega;
   }
 
   function tryAdd(x, y, r) {
@@ -764,6 +898,35 @@ function drawBumpers() {
     ctx.arc(x - r * 0.25, y - r * 0.22, r * 0.26, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(255,255,255,0.26)';
     ctx.fill();
+  });
+}
+
+function drawDesktopMegaBouncy() {
+  const megas = getDesktopMegaBouncies();
+  if (!megas.length) return;
+
+  megas.forEach((mega) => {
+    const g = ctx.createRadialGradient(mega.x - mega.r * 0.34, mega.y - mega.r * 0.36, mega.r * 0.3, mega.x, mega.y, mega.r);
+    g.addColorStop(0, '#d2b9ff');
+    g.addColorStop(0.55, '#8b5dff');
+    g.addColorStop(1, '#5f36cf');
+
+    ctx.beginPath();
+    ctx.arc(mega.x, mega.y, mega.r, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(mega.x, mega.y, mega.r - 6, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = '#f4eaff';
+    ctx.font = 'bold 15px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('bouncy', mega.x, mega.y + 1);
   });
 }
 
@@ -973,7 +1136,7 @@ function drawTrail() {
     const t = (i + 1) / trail.length;
     ctx.beginPath();
     ctx.arc(p.x, p.y, 2 + t * 6, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255, 140, 20, ${t * 0.45})`;
+    ctx.fillStyle = `rgba(81, 107, 255, ${t * 0.45})`;
     ctx.fill();
   });
 }
@@ -1231,7 +1394,7 @@ function handlePlatformCollision() {
 function handleSideWallCollision() {
   const left = PLAT_X + PLAT_W + SIDE_WALL_GAP;
   const right = left + SIDE_WALL_W;
-  const top = gY() - SIDE_WALL_H;
+  const top = gY() - sideWallH();
   const bottom = canvas.height;
 
   const closestX = Math.max(left, Math.min(bx, right));
@@ -1391,6 +1554,43 @@ function handleBumperCollisions() {
       bvy += ny * pop;
     }
   });
+}
+
+function handleDesktopMegaBouncyCollision() {
+  const megas = getDesktopMegaBouncies();
+  if (!megas.length) return;
+
+  let collided = false;
+  megas.forEach((mega) => {
+    const dx = bx - mega.x;
+    const dy = by - mega.y;
+    const minDist = BIRD_R + mega.r;
+    const distSq = dx * dx + dy * dy;
+    if (distSq >= minDist * minDist) return;
+    collided = true;
+
+    const dist = Math.sqrt(distSq) || 0.0001;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const penetration = minDist - dist;
+
+    bx += nx * penetration;
+    by += ny * penetration;
+
+    const vn = bvx * nx + bvy * ny;
+    if (vn < 0) {
+      const restitution = 1.12;
+      bvx -= (1 + restitution) * vn * nx;
+      bvy -= (1 + restitution) * vn * ny;
+      bvx += nx * 0.9;
+      bvy += ny * 0.9;
+      if (ny < -0.2) bvy -= 2.2;
+    }
+  });
+
+  if (collided && launched && !scoredThisShot) {
+    shotStartedAtMs = performance.now();
+  }
 }
 
 function handleBouncePadCollisions() {
@@ -1590,8 +1790,8 @@ function updateMobileDropPhysics() {
   }
 
   if (mobileDrop.inPipeIndex < 0) {
-    const mega = getMobileMegaBouncy();
-    if (mega) {
+    const megas = getMobileMegaBouncies();
+    megas.forEach((mega) => {
       const dx = mobileDrop.x - mega.x;
       const dy = mobileDrop.y - mega.y;
       const minDist = MOBILE_BALL_R + mega.r;
@@ -1621,7 +1821,7 @@ function updateMobileDropPhysics() {
           }
         }
       }
-    }
+    });
   }
 
   const bumpers = getMobileBumpers();
@@ -1737,6 +1937,7 @@ function update() {
   handleSideWallCollision();
   handleRightBarrierCollision();
   handleBumperCollisions();
+  handleDesktopMegaBouncyCollision();
   handleBouncePadCollisions();
   handlePipeWallCollisions();
   handlePipeContainmentCollisions();
@@ -1789,6 +1990,7 @@ function loop() {
   drawPlatform();
   drawSideWall();
   drawBouncePads();
+  drawDesktopMegaBouncy();
   drawBumpers();
   drawSlingshot();
   drawBandSegment('left');   // behind bird
@@ -1888,6 +2090,7 @@ function onUp() {
   bvy = (r.y - by) * POWER;
   waterCount = Math.max(0, waterCount - 1);
   shotStartedAtMs = performance.now();
+  wallGrowthStartedAtMs = shotStartedAtMs;
   launched = true;
   trail    = [];
 }
@@ -1970,6 +2173,7 @@ function onMobilePointerUp(e) {
   mobileDrop.vy = 0;
   waterCount = Math.max(0, waterCount - 1);
   shotStartedAtMs = performance.now();
+  wallGrowthStartedAtMs = shotStartedAtMs;
   launched = true;
 }
 
