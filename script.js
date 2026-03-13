@@ -6,6 +6,8 @@ const mobileLevelEl = document.getElementById('mobileLevelCount');
 const mobileNextLevelTextEl = document.getElementById('mobileNextLevelText');
 const mobileNextLevelFillEl = document.getElementById('mobileNextLevelFill');
 const mobileDropBallEl = document.getElementById('mobileDropBall');
+const mobileBumpersEl = document.getElementById('mobileBumpers');
+const mobileResetBallBtnEl = document.getElementById('mobileResetBallBtn');
 
 const MOBILE_BREAKPOINT = 800;
 const MOBILE_BALL_R = 24;
@@ -13,12 +15,18 @@ const MOBILE_GRAVITY = 0.35;
 const MOBILE_BALL_RESTITUTION = 0.58;
 const MOBILE_PIPE_LEFT_PCTS = [5, 31, 57, 83];
 const MOBILE_PIPE_WIDTH_PCT = 18;
-const MOBILE_PIPE_X_OFFSET_PX = 22;
+const MOBILE_PIPE_X_OFFSET_PX = -18;
+const MOBILE_BUMPER_X_OFFSET_PX = 22;
 const MOBILE_PIPE_BOTTOM_PX = -10;
 const MOBILE_PIPE_HEIGHT_VH = 22;
+const MOBILE_PIPE_ENTRY_DEPTH_PX = 14;
+const MOBILE_AIM_MIN_Y = 130;
+const MOBILE_AIM_BOTTOM_ZONE_PX = 700;
 const MOBILE_BUMPER_R = 22;
 const MOBILE_BUMPERS = [
+  { xPct: 5,  yPct: 44 },
   { xPct: 14, yPct: 37 },
+  { xPct: 31, yPct: 29 },
   { xPct: 47, yPct: 35 },
   { xPct: 73, yPct: 41 },
   { xPct: 24, yPct: 51 },
@@ -27,6 +35,7 @@ const MOBILE_BUMPERS = [
   { xPct: 30, yPct: 63 },
   { xPct: 49, yPct: 60 },
   { xPct: 77, yPct: 64 },
+  { xPct: 92, yPct: 52 },
 ];
 const MOBILE_PIPE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
 
@@ -63,6 +72,7 @@ const RIGHT_BARRIER_OVERFLOW = 5000;
 const GRAVITY     = 0.35;
 const MAX_PULL    = 125;
 const POWER       = 0.2;
+const MOBILE_RESET_BTN_DELAY_MS = 3000;
 const RESET_BALL_BTN_DELAY_MS = 6000;
 const LEVEL_2_POINTS = 10;
 const LEVEL_3_POINTS = 20;
@@ -106,6 +116,7 @@ let mobileDrop = {
   vy: 0,
   pressing: false,
   dropping: false,
+  inPipeIndex: -1,
 };
 let mobileActivePointerId = null;
 
@@ -126,6 +137,7 @@ function getSafeScore() {
 
 function setScore(nextScore) {
   score = Math.max(0, nextScore);
+  unlockedLevel = Math.max(unlockedLevel, getLevelForPoints(score));
 }
 
 function pointsToNextLevel() {
@@ -185,7 +197,7 @@ function scheduleReset(ms) {
 }
 
 function isMobileViewport() {
-  return Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth) < MOBILE_BREAKPOINT;
+  return Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth) <= MOBILE_BREAKPOINT;
 }
 
 function getMobilePipeRects() {
@@ -209,28 +221,33 @@ function getMobilePipeRects() {
 }
 
 function getMobileBumpers() {
+  if (unlockedLevel < 2) return [];
+
   const w = window.innerWidth;
   const h = window.innerHeight;
   return MOBILE_BUMPERS.map((b) => ({
-    x: (b.xPct / 100) * w + MOBILE_PIPE_X_OFFSET_PX,
+    x: (b.xPct / 100) * w + MOBILE_BUMPER_X_OFFSET_PX,
     y: (b.yPct / 100) * h,
     r: MOBILE_BUMPER_R,
   }));
 }
 
-function getMobileHoldYBounds() {
-  const minY = 86;
+function getMobileBouncePads() {
   const pipes = getMobilePipeRects();
-  const bumpers = getMobileBumpers();
-  const pipeLimit = pipes[0].y - MOBILE_BALL_R - 8;
-  const lowestBumperY = Math.max(...bumpers.map((b) => b.y));
-  const highestBumperY = Math.min(...bumpers.map((b) => b.y));
+  const pads = [];
+  const y = pipes[0].y;
+  const h = pipes[0].h;
 
-  // Keep held ball above the lower bumper field so it cannot be dragged past it.
-  const highBarrier = highestBumperY + MOBILE_BUMPER_R - MOBILE_BALL_R - 18;
-  const bumperBarrier = Math.min(highBarrier, lowestBumperY - 120);
-  const maxY = Math.max(minY, Math.min(pipeLimit, bumperBarrier));
-  return { minY, maxY };
+  for (let i = 0; i < pipes.length - 1; i++) {
+    const gapLeft = pipes[i].x + pipes[i].w;
+    const gapRight = pipes[i + 1].x;
+    const gapW = Math.max(0, gapRight - gapLeft);
+    const w = Math.max(14, gapW - 8);
+    const x = gapLeft + (gapW - w) / 2;
+    pads.push({ x, y, w, h });
+  }
+
+  return pads;
 }
 
 function renderMobileDropBall() {
@@ -239,15 +256,26 @@ function renderMobileDropBall() {
 }
 
 function resetMobileDropBall() {
-  mobileDrop.x = window.innerWidth * 0.2;
+  mobileDrop.x = window.innerWidth * 0.5;
   mobileDrop.y = 118;
   mobileDrop.vx = 0;
   mobileDrop.vy = 0;
   mobileDrop.pressing = false;
   mobileDrop.dropping = false;
+  mobileDrop.inPipeIndex = -1;
   mobileActivePointerId = null;
+  shotStartedAtMs = 0;
   launched = false;
   renderMobileDropBall();
+}
+
+function shouldShowMobileResetButton() {
+  return isMobileViewport() &&
+    !gameOver &&
+    mobileDrop.dropping &&
+    mobileDrop.inPipeIndex < 0 &&
+    shotStartedAtMs > 0 &&
+    performance.now() - shotStartedAtMs >= MOBILE_RESET_BTN_DELAY_MS;
 }
 
 function syncMobileHud() {
@@ -285,6 +313,14 @@ function syncMobileHud() {
 
   if (mobileNextLevelFillEl) {
     mobileNextLevelFillEl.style.width = `${progress * 100}%`;
+  }
+
+  if (mobileBumpersEl) {
+    mobileBumpersEl.style.display = isMobileViewport() && level >= 2 ? 'block' : 'none';
+  }
+
+  if (mobileResetBallBtnEl) {
+    mobileResetBallBtnEl.style.display = shouldShowMobileResetButton() ? 'inline-flex' : 'none';
   }
 }
 
@@ -1418,29 +1454,72 @@ function updateMobileDropPhysics() {
     }
   });
 
+  if (mobileDrop.inPipeIndex < 0) {
+    const pads = getMobileBouncePads();
+    pads.forEach((pad) => {
+      const closestX = Math.max(pad.x, Math.min(mobileDrop.x, pad.x + pad.w));
+      const closestY = Math.max(pad.y, Math.min(mobileDrop.y, pad.y + pad.h));
+      const dx = mobileDrop.x - closestX;
+      const dy = mobileDrop.y - closestY;
+      const distSq = dx * dx + dy * dy;
+      if (distSq > MOBILE_BALL_R * MOBILE_BALL_R) return;
+
+      const comingDown = mobileDrop.vy > 0;
+      const nearTop = mobileDrop.y < pad.y + pad.h * 0.8;
+
+      if (comingDown && nearTop) {
+        const padCenterX = pad.x + pad.w / 2;
+        const hitOffset = (mobileDrop.x - padCenterX) / Math.max(1, pad.w / 2);
+        mobileDrop.y = pad.y - MOBILE_BALL_R;
+        mobileDrop.vy = -Math.max(4.8, Math.abs(mobileDrop.vy) * 0.76);
+        mobileDrop.vx += hitOffset * 2.2;
+      } else {
+        const push = Math.sqrt(distSq) > 0.001 ? MOBILE_BALL_R - Math.sqrt(distSq) : 1;
+        mobileDrop.x += (dx >= 0 ? 1 : -1) * push;
+        mobileDrop.vx *= -0.68;
+        mobileDrop.vy *= 0.9;
+      }
+    });
+  }
+
   const pipes = getMobilePipeRects();
   const topY = pipes[0].y;
-  const insidePipe = pipes.find((p) => (
-    mobileDrop.x >= p.x + MOBILE_BALL_R * 0.55 &&
-    mobileDrop.x <= p.x + p.w - MOBILE_BALL_R * 0.55 &&
-    mobileDrop.y + MOBILE_BALL_R >= p.y
+  const pipeAtTopIndex = pipes.findIndex((p) => (
+    mobileDrop.x >= p.x + 6 &&
+    mobileDrop.x <= p.x + p.w - 6
   ));
+  const pipeAtTop = pipeAtTopIndex >= 0 ? pipes[pipeAtTopIndex] : null;
 
-  if (insidePipe) {
-    mobileDrop.dropping = false;
-    applyPipeOutcome(insidePipe.color);
-    scoredThisShot = true;
-    setTimeout(resetMobileDropBall, 550);
-    return;
+  if (mobileDrop.inPipeIndex < 0 &&
+      mobileDrop.vy >= 0 &&
+      mobileDrop.y + MOBILE_BALL_R >= topY + MOBILE_PIPE_ENTRY_DEPTH_PX &&
+      pipeAtTop) {
+    mobileDrop.inPipeIndex = pipeAtTopIndex;
+    mobileDrop.x = Math.max(
+      pipeAtTop.x + MOBILE_BALL_R,
+      Math.min(pipeAtTop.x + pipeAtTop.w - MOBILE_BALL_R, mobileDrop.x),
+    );
+
+    if (!scoredThisShot) {
+      applyPipeOutcome(pipeAtTop.color);
+      scoredThisShot = true;
+    }
   }
 
-  if (mobileDrop.y + MOBILE_BALL_R >= topY) {
-    mobileDrop.y = topY - MOBILE_BALL_R;
-    mobileDrop.vy *= -0.45;
-    mobileDrop.vx *= 0.85;
+  if (mobileDrop.inPipeIndex >= 0) {
+    const activePipe = pipes[mobileDrop.inPipeIndex];
+    if (activePipe) {
+      mobileDrop.x = Math.max(
+        activePipe.x + MOBILE_BALL_R,
+        Math.min(activePipe.x + activePipe.w - MOBILE_BALL_R, mobileDrop.x),
+      );
+      mobileDrop.vx *= 0.6;
+    } else {
+      mobileDrop.inPipeIndex = -1;
+    }
   }
 
-  if (mobileDrop.y - MOBILE_BALL_R > h + 100 || Math.abs(mobileDrop.vy) < 0.08 && mobileDrop.y + MOBILE_BALL_R >= topY - 1) {
+  if (mobileDrop.y - MOBILE_BALL_R > h + 100) {
     mobileDrop.dropping = false;
     setTimeout(resetMobileDropBall, 400);
   }
@@ -1496,8 +1575,7 @@ function loop() {
   syncMobileHud();
   renderMobileDropBall();
 
-  const viewportW = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
-  if (viewportW < 800) {
+  if (isMobileViewport()) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     requestAnimationFrame(loop);
     return;
@@ -1545,6 +1623,7 @@ function getXY(e) {
 }
 
 function onDown(e) {
+  if (isMobileViewport()) return;
   const p = getXY(e);
 
   if (gameOver) {
@@ -1584,6 +1663,7 @@ function onDown(e) {
 }
 
 function onMove(e) {
+  if (isMobileViewport()) return;
   if (!dragging) return;
   if (e.cancelable) e.preventDefault();
   const p  = getXY(e);
@@ -1603,6 +1683,7 @@ function onMove(e) {
 }
 
 function onUp() {
+  if (isMobileViewport()) return;
   if (!dragging || gameOver || waterCount <= 0) return;
   dragging = false;
   aimX = bx;
@@ -1623,15 +1704,21 @@ function getPointerXY(e) {
 function onMobilePointerDown(e) {
   if (!isMobileViewport()) return;
   if (gameOver || waterCount <= 0) return;
-  if (mobileDrop.pressing) return;
+  if (mobileDrop.pressing || mobileDrop.dropping) return;
   if (e.cancelable) e.preventDefault();
 
   const p = getPointerXY(e);
-  const { minY, maxY } = getMobileHoldYBounds();
+  const pipes = getMobilePipeRects();
+  const minY = MOBILE_AIM_MIN_Y;
+  const maxY = Math.min(
+    pipes[0].y - MOBILE_BALL_R - 8,
+    window.innerHeight - MOBILE_AIM_BOTTOM_ZONE_PX,
+  );
   mobileDrop.x = Math.max(MOBILE_BALL_R, Math.min(window.innerWidth - MOBILE_BALL_R, p.x));
   mobileDrop.y = Math.max(minY, Math.min(maxY, p.y));
   mobileDrop.vx = 0;
   mobileDrop.vy = 0;
+  mobileDrop.inPipeIndex = -1;
   mobileDrop.pressing = true;
   mobileDrop.dropping = false;
   mobileActivePointerId = e.pointerId;
@@ -1643,12 +1730,33 @@ function onMobilePointerDown(e) {
 
 function onMobilePointerMove(e) {
   if (!isMobileViewport()) return;
-  if (!mobileDrop.pressing || gameOver) return;
+  if (gameOver || mobileDrop.dropping) return;
+
+  if (!mobileDrop.pressing) {
+    if (e.pointerType !== 'mouse') return;
+    const p = getPointerXY(e);
+    const pipes = getMobilePipeRects();
+    const minY = MOBILE_AIM_MIN_Y;
+    const maxY = Math.min(
+      pipes[0].y - MOBILE_BALL_R - 8,
+      window.innerHeight - MOBILE_AIM_BOTTOM_ZONE_PX,
+    );
+    mobileDrop.x = Math.max(MOBILE_BALL_R, Math.min(window.innerWidth - MOBILE_BALL_R, p.x));
+    mobileDrop.y = Math.max(minY, Math.min(maxY, p.y));
+    renderMobileDropBall();
+    return;
+  }
+
   if (mobileActivePointerId !== null && e.pointerId !== mobileActivePointerId) return;
   if (e.cancelable) e.preventDefault();
 
   const p = getPointerXY(e);
-  const { minY, maxY } = getMobileHoldYBounds();
+  const pipes = getMobilePipeRects();
+  const minY = MOBILE_AIM_MIN_Y;
+  const maxY = Math.min(
+    pipes[0].y - MOBILE_BALL_R - 8,
+    window.innerHeight - MOBILE_AIM_BOTTOM_ZONE_PX,
+  );
   mobileDrop.x = Math.max(MOBILE_BALL_R, Math.min(window.innerWidth - MOBILE_BALL_R, p.x));
   mobileDrop.y = Math.max(minY, Math.min(maxY, p.y));
   renderMobileDropBall();
@@ -1694,3 +1802,17 @@ window.addEventListener('pointerdown', onMobilePointerDown, { passive: false });
 window.addEventListener('pointermove', onMobilePointerMove, { passive: false });
 window.addEventListener('pointerup', onMobilePointerUp, { passive: false });
 window.addEventListener('pointercancel', onMobilePointerCancel, { passive: false });
+
+if (mobileResetBallBtnEl) {
+  mobileResetBallBtnEl.addEventListener('click', () => {
+    if (!isMobileViewport()) return;
+
+    // Reset cancels the current mobile shot, so refund that shot's water.
+    if (mobileDrop.dropping && mobileDrop.inPipeIndex < 0) {
+      waterCount += 1;
+    }
+
+    gameOver = false;
+    resetMobileDropBall();
+  });
+}
