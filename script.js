@@ -1,12 +1,45 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx    = canvas.getContext('2d');
+const mobileWaterEl = document.getElementById('mobileWaterCount');
+const mobilePointsEl = document.getElementById('mobilePointCount');
+const mobileLevelEl = document.getElementById('mobileLevelCount');
+const mobileNextLevelTextEl = document.getElementById('mobileNextLevelText');
+const mobileNextLevelFillEl = document.getElementById('mobileNextLevelFill');
+const mobileDropBallEl = document.getElementById('mobileDropBall');
+
+const MOBILE_BREAKPOINT = 800;
+const MOBILE_BALL_R = 24;
+const MOBILE_GRAVITY = 0.35;
+const MOBILE_BALL_RESTITUTION = 0.58;
+const MOBILE_PIPE_LEFT_PCTS = [5, 31, 57, 83];
+const MOBILE_PIPE_WIDTH_PCT = 18;
+const MOBILE_PIPE_X_OFFSET_PX = 22;
+const MOBILE_PIPE_BOTTOM_PX = -10;
+const MOBILE_PIPE_HEIGHT_VH = 22;
+const MOBILE_BUMPER_R = 22;
+const MOBILE_BUMPERS = [
+  { xPct: 14, yPct: 37 },
+  { xPct: 47, yPct: 35 },
+  { xPct: 73, yPct: 41 },
+  { xPct: 24, yPct: 51 },
+  { xPct: 56, yPct: 55 },
+  { xPct: 81, yPct: 48 },
+  { xPct: 30, yPct: 63 },
+  { xPct: 49, yPct: 60 },
+  { xPct: 77, yPct: 64 },
+];
+const MOBILE_PIPE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
 
 function resize() {
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
 }
 resize();
-window.addEventListener('resize', () => { resize(); resetBird(); });
+window.addEventListener('resize', () => {
+  resize();
+  resetBird();
+  resetMobileDropBall();
+});
 
 // --- Layout constants ---
 const GROUND_H    = 45;
@@ -66,6 +99,15 @@ let resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
 let shotStartedAtMs = 0;
 let levelNoticeText = '';
 let levelNoticeUntilMs = 0;
+let mobileDrop = {
+  x: -120,
+  y: -120,
+  vx: 0,
+  vy: 0,
+  pressing: false,
+  dropping: false,
+};
+let mobileActivePointerId = null;
 
 function getLevelForPoints(points) {
   if (points >= LEVEL_4_POINTS) return 4;
@@ -114,6 +156,7 @@ function restartGame() {
   showHint = true;
   resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   resetBird();
+  resetMobileDropBall();
 }
 
 function resetBird() {
@@ -132,11 +175,116 @@ function resetBird() {
   aimY = by;
 }
 resetBird();
+resetMobileDropBall();
 
 function scheduleReset(ms) {
   if (!pending) {
     pending = true;
     setTimeout(resetBird, ms);
+  }
+}
+
+function isMobileViewport() {
+  return Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth) < MOBILE_BREAKPOINT;
+}
+
+function getMobilePipeRects() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const pipeW = (MOBILE_PIPE_WIDTH_PCT / 100) * w;
+  const pipeH = (MOBILE_PIPE_HEIGHT_VH / 100) * h;
+  const bottom = h + MOBILE_PIPE_BOTTOM_PX;
+  const top = bottom - pipeH;
+
+  return MOBILE_PIPE_LEFT_PCTS.map((pct, i) => {
+    const x = (pct / 100) * w + MOBILE_PIPE_X_OFFSET_PX;
+    return {
+      x,
+      y: top,
+      w: pipeW,
+      h: pipeH,
+      color: MOBILE_PIPE_COLORS[i],
+    };
+  });
+}
+
+function getMobileBumpers() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return MOBILE_BUMPERS.map((b) => ({
+    x: (b.xPct / 100) * w + MOBILE_PIPE_X_OFFSET_PX,
+    y: (b.yPct / 100) * h,
+    r: MOBILE_BUMPER_R,
+  }));
+}
+
+function getMobileHoldYBounds() {
+  const minY = 86;
+  const pipes = getMobilePipeRects();
+  const bumpers = getMobileBumpers();
+  const pipeLimit = pipes[0].y - MOBILE_BALL_R - 8;
+  const lowestBumperY = Math.max(...bumpers.map((b) => b.y));
+  const highestBumperY = Math.min(...bumpers.map((b) => b.y));
+
+  // Keep held ball above the lower bumper field so it cannot be dragged past it.
+  const highBarrier = highestBumperY + MOBILE_BUMPER_R - MOBILE_BALL_R - 18;
+  const bumperBarrier = Math.min(highBarrier, lowestBumperY - 120);
+  const maxY = Math.max(minY, Math.min(pipeLimit, bumperBarrier));
+  return { minY, maxY };
+}
+
+function renderMobileDropBall() {
+  if (!mobileDropBallEl) return;
+  mobileDropBallEl.style.transform = `translate(${mobileDrop.x - MOBILE_BALL_R}px, ${mobileDrop.y - MOBILE_BALL_R}px)`;
+}
+
+function resetMobileDropBall() {
+  mobileDrop.x = window.innerWidth * 0.2;
+  mobileDrop.y = 118;
+  mobileDrop.vx = 0;
+  mobileDrop.vy = 0;
+  mobileDrop.pressing = false;
+  mobileDrop.dropping = false;
+  mobileActivePointerId = null;
+  launched = false;
+  renderMobileDropBall();
+}
+
+function syncMobileHud() {
+  if (!mobileWaterEl || !mobilePointsEl || !mobileLevelEl) return;
+
+  const safeScore = getSafeScore();
+  const level = getLevelFromScore();
+  let levelStart = 0;
+  let levelEnd = LEVEL_2_POINTS;
+
+  if (level === 2) {
+    levelStart = LEVEL_2_POINTS;
+    levelEnd = LEVEL_3_POINTS;
+  } else if (level === 3) {
+    levelStart = LEVEL_3_POINTS;
+    levelEnd = LEVEL_4_POINTS;
+  } else if (level >= 4) {
+    levelStart = LEVEL_4_POINTS;
+    levelEnd = LEVEL_4_POINTS;
+  }
+
+  const levelSpan = Math.max(1, levelEnd - levelStart);
+  const progress = level >= 4 ? 1 : Math.max(0, Math.min(1, (safeScore - levelStart) / levelSpan));
+  const remaining = pointsToNextLevel();
+
+  mobileWaterEl.textContent = String(waterCount);
+  mobilePointsEl.textContent = String(safeScore);
+  mobileLevelEl.textContent = String(level);
+
+  if (mobileNextLevelTextEl) {
+    mobileNextLevelTextEl.textContent = remaining === 0
+      ? 'Max level reached'
+      : `${remaining} points to next level`;
+  }
+
+  if (mobileNextLevelFillEl) {
+    mobileNextLevelFillEl.style.width = `${progress * 100}%`;
   }
 }
 
@@ -286,6 +434,18 @@ function getPipeReward(color) {
   if (color === '#BF6C46') return unlockedLevel >= 3 ? -5 : -3;
   if (color === '#69DC69') return 3;
   return 0;
+}
+
+function applyPipeOutcome(color) {
+  setScore(score + getPipeReward(color));
+  if (color === '#77A8BB') {
+    waterCount += 5;
+  }
+  updateUnlockedLevel();
+  while (score >= nextWaterBonusAt) {
+    waterCount += 1;
+    nextWaterBonusAt += 10;
+  }
 }
 
 function getBumpers() {
@@ -1198,15 +1358,7 @@ function handlePipeScoring() {
     if (!insidePipe) continue;
 
     const color = layout.colors[i];
-    setScore(score + getPipeReward(color));
-    if (color === '#77A8BB') {
-      waterCount += 5;
-    }
-    updateUnlockedLevel();
-    while (score >= nextWaterBonusAt) {
-      waterCount += 1;
-      nextWaterBonusAt += 10;
-    }
+    applyPipeOutcome(color);
     scoredThisShot = true;
     lockedPipeIndex = i;
     scheduleReset(650);
@@ -1216,15 +1368,88 @@ function handlePipeScoring() {
 
 function updateGameOverState() {
   if (gameOver) return;
-  if (!launched && waterCount <= 0) {
+  if (!launched && !mobileDrop.dropping && waterCount <= 0) {
     gameOver = true;
     showHint = false;
+  }
+}
+
+function updateMobileDropPhysics() {
+  if (!isMobileViewport()) return;
+  if (!mobileDrop.dropping || gameOver) return;
+
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  mobileDrop.vy += MOBILE_GRAVITY;
+  mobileDrop.x += mobileDrop.vx;
+  mobileDrop.y += mobileDrop.vy;
+
+  if (mobileDrop.x - MOBILE_BALL_R < 0) {
+    mobileDrop.x = MOBILE_BALL_R;
+    mobileDrop.vx *= -MOBILE_BALL_RESTITUTION;
+  } else if (mobileDrop.x + MOBILE_BALL_R > w) {
+    mobileDrop.x = w - MOBILE_BALL_R;
+    mobileDrop.vx *= -MOBILE_BALL_RESTITUTION;
+  }
+
+  const bumpers = getMobileBumpers();
+  bumpers.forEach((b) => {
+    const dx = mobileDrop.x - b.x;
+    const dy = mobileDrop.y - b.y;
+    const minDist = MOBILE_BALL_R + b.r;
+    const distSq = dx * dx + dy * dy;
+    if (distSq >= minDist * minDist) return;
+
+    const dist = Math.sqrt(distSq) || 0.0001;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const penetration = minDist - dist;
+
+    mobileDrop.x += nx * penetration;
+    mobileDrop.y += ny * penetration;
+
+    const vn = mobileDrop.vx * nx + mobileDrop.vy * ny;
+    if (vn < 0) {
+      mobileDrop.vx -= (1 + 0.78) * vn * nx;
+      mobileDrop.vy -= (1 + 0.78) * vn * ny;
+      mobileDrop.vx += nx * 0.4;
+      mobileDrop.vy += ny * 0.4;
+    }
+  });
+
+  const pipes = getMobilePipeRects();
+  const topY = pipes[0].y;
+  const insidePipe = pipes.find((p) => (
+    mobileDrop.x >= p.x + MOBILE_BALL_R * 0.55 &&
+    mobileDrop.x <= p.x + p.w - MOBILE_BALL_R * 0.55 &&
+    mobileDrop.y + MOBILE_BALL_R >= p.y
+  ));
+
+  if (insidePipe) {
+    mobileDrop.dropping = false;
+    applyPipeOutcome(insidePipe.color);
+    scoredThisShot = true;
+    setTimeout(resetMobileDropBall, 550);
+    return;
+  }
+
+  if (mobileDrop.y + MOBILE_BALL_R >= topY) {
+    mobileDrop.y = topY - MOBILE_BALL_R;
+    mobileDrop.vy *= -0.45;
+    mobileDrop.vx *= 0.85;
+  }
+
+  if (mobileDrop.y - MOBILE_BALL_R > h + 100 || Math.abs(mobileDrop.vy) < 0.08 && mobileDrop.y + MOBILE_BALL_R >= topY - 1) {
+    mobileDrop.dropping = false;
+    setTimeout(resetMobileDropBall, 400);
   }
 }
 
 // --- Physics ---
 function update() {
   updateGameOverState();
+  if (isMobileViewport()) return;
   if (!launched || gameOver) return;
 
   trail.push({ x: bx, y: by });
@@ -1267,12 +1492,19 @@ function update() {
 // --- Main Loop ---
 function loop() {
   update();
+  updateMobileDropPhysics();
+  syncMobileHud();
+  renderMobileDropBall();
 
   const viewportW = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
   if (viewportW < 800) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     requestAnimationFrame(loop);
     return;
+  }
+
+  if (mobileDropBallEl) {
+    mobileDropBallEl.style.transform = 'translate(-120px, -120px)';
   }
 
   drawSky();
@@ -1297,6 +1529,7 @@ function loop() {
   drawGameOver();
   requestAnimationFrame(loop);
 }
+syncMobileHud();
 loop();
 
 // --- Input Handling ---
@@ -1383,9 +1616,81 @@ function onUp() {
   trail    = [];
 }
 
+function getPointerXY(e) {
+  return { x: e.clientX, y: e.clientY };
+}
+
+function onMobilePointerDown(e) {
+  if (!isMobileViewport()) return;
+  if (gameOver || waterCount <= 0) return;
+  if (mobileDrop.pressing) return;
+  if (e.cancelable) e.preventDefault();
+
+  const p = getPointerXY(e);
+  const { minY, maxY } = getMobileHoldYBounds();
+  mobileDrop.x = Math.max(MOBILE_BALL_R, Math.min(window.innerWidth - MOBILE_BALL_R, p.x));
+  mobileDrop.y = Math.max(minY, Math.min(maxY, p.y));
+  mobileDrop.vx = 0;
+  mobileDrop.vy = 0;
+  mobileDrop.pressing = true;
+  mobileDrop.dropping = false;
+  mobileActivePointerId = e.pointerId;
+  scoredThisShot = false;
+  showHint = false;
+  launched = false;
+  renderMobileDropBall();
+}
+
+function onMobilePointerMove(e) {
+  if (!isMobileViewport()) return;
+  if (!mobileDrop.pressing || gameOver) return;
+  if (mobileActivePointerId !== null && e.pointerId !== mobileActivePointerId) return;
+  if (e.cancelable) e.preventDefault();
+
+  const p = getPointerXY(e);
+  const { minY, maxY } = getMobileHoldYBounds();
+  mobileDrop.x = Math.max(MOBILE_BALL_R, Math.min(window.innerWidth - MOBILE_BALL_R, p.x));
+  mobileDrop.y = Math.max(minY, Math.min(maxY, p.y));
+  renderMobileDropBall();
+}
+
+function onMobilePointerUp(e) {
+  if (!isMobileViewport()) return;
+  if (!mobileDrop.pressing || gameOver || waterCount <= 0) return;
+  if (mobileActivePointerId !== null && e.pointerId !== mobileActivePointerId) return;
+  if (e.cancelable) e.preventDefault();
+
+  mobileDrop.pressing = false;
+  mobileDrop.dropping = true;
+  mobileActivePointerId = null;
+  mobileDrop.vx = 0;
+  mobileDrop.vy = 0;
+  waterCount = Math.max(0, waterCount - 1);
+  shotStartedAtMs = performance.now();
+  launched = true;
+}
+
+function onMobilePointerCancel(e) {
+  if (!isMobileViewport()) return;
+  if (!mobileDrop.pressing) return;
+  if (mobileActivePointerId !== null && e.pointerId !== mobileActivePointerId) return;
+
+  // Cancellation should not count as a release/drop.
+  mobileDrop.pressing = false;
+  mobileDrop.dropping = false;
+  mobileDrop.vx = 0;
+  mobileDrop.vy = 0;
+  mobileActivePointerId = null;
+}
+
 canvas.addEventListener('mousedown',  onDown);
 canvas.addEventListener('mousemove',  onMove);
 canvas.addEventListener('mouseup',    onUp);
 canvas.addEventListener('touchstart', onDown, { passive: true });
 canvas.addEventListener('touchmove',  onMove, { passive: false });
 canvas.addEventListener('touchend',   onUp);
+
+window.addEventListener('pointerdown', onMobilePointerDown, { passive: false });
+window.addEventListener('pointermove', onMobilePointerMove, { passive: false });
+window.addEventListener('pointerup', onMobilePointerUp, { passive: false });
+window.addEventListener('pointercancel', onMobilePointerCancel, { passive: false });

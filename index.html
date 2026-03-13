@@ -7,6 +7,23 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <div id="mobileHud" aria-live="polite" aria-label="Game status">
+    <div id="mobileHudStats">
+      <div class="mobileHudItem">Water: <span id="mobileWaterCount">10</span></div>
+      <div class="mobileHudItem">Points: <span id="mobilePointCount">0</span></div>
+      <div class="mobileHudItem">Level: <span id="mobileLevelCount">1</span></div>
+    </div>
+    <div id="mobileNextLevelWrap" aria-label="Next level progress">
+      <div id="mobileNextLevelText">10 points to next level</div>
+      <div id="mobileNextLevelTrack">
+        <div id="mobileNextLevelFill"></div>
+      </div>
+    </div>
+  </div>
+  <div id="mobileDropBall" aria-hidden="true">
+    <img src="can.jpg" alt="" />
+  </div>
+  <div id="mobileBumpers" aria-hidden="true"></div>
   <div id="mobilePipes" aria-hidden="true"></div>
   <canvas id="gameCanvas"></canvas>
   <script src="script.js"></script>
