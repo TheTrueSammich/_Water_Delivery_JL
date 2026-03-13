@@ -6,6 +6,7 @@ const mobileLevelEl = document.getElementById('mobileLevelCount');
 const mobileNextLevelTextEl = document.getElementById('mobileNextLevelText');
 const mobileNextLevelFillEl = document.getElementById('mobileNextLevelFill');
 const mobileDropBallEl = document.getElementById('mobileDropBall');
+const mobileModifierBadgeEl = document.getElementById('mobileModifierBadge');
 const mobileMegaBouncyEl = document.getElementById('mobileMegaBouncy');
 const mobileBumpersEl = document.getElementById('mobileBumpers');
 const mobileResetBallBtnEl = document.getElementById('mobileResetBallBtn');
@@ -562,6 +563,23 @@ function renderMobileDropBall() {
       img.style.filter = 'saturate(1.35) hue-rotate(12deg) brightness(1.08)';
     } else {
       img.style.filter = 'none';
+    }
+  }
+
+  if (mobileModifierBadgeEl) {
+    if (unlockedLevel >= 4 && activeBumperModifier < 0) {
+      mobileModifierBadgeEl.textContent = '-1';
+      mobileModifierBadgeEl.style.opacity = '1';
+      mobileModifierBadgeEl.style.background = 'rgba(112, 68, 44, 0.9)';
+      mobileModifierBadgeEl.style.color = '#ffe7d5';
+    } else if (unlockedLevel >= 4 && activeBumperModifier > 0) {
+      mobileModifierBadgeEl.textContent = '+3';
+      mobileModifierBadgeEl.style.opacity = '1';
+      mobileModifierBadgeEl.style.background = 'rgba(20, 111, 145, 0.9)';
+      mobileModifierBadgeEl.style.color = '#e7fcff';
+    } else {
+      mobileModifierBadgeEl.textContent = '';
+      mobileModifierBadgeEl.style.opacity = '0';
     }
   }
 }
@@ -1519,6 +1537,22 @@ function drawBird(x, y) {
       ctx.beginPath();
       ctx.arc(0, 0, imgR, 0, Math.PI * 2);
       ctx.fill();
+    }
+
+    if (unlockedLevel >= 4 && activeBumperModifier !== 0) {
+      const badgeW = 22;
+      const badgeH = 12;
+      const badgeX = -badgeW / 2;
+      const badgeY = -imgR + 4;
+      ctx.fillStyle = activeBumperModifier < 0 ? 'rgba(112, 68, 44, 0.92)' : 'rgba(20, 111, 145, 0.92)';
+      drawRoundedRect(badgeX, badgeY, badgeW, badgeH, 6);
+      ctx.fill();
+
+      ctx.fillStyle = activeBumperModifier < 0 ? '#ffe7d5' : '#e7fcff';
+      ctx.font = 'bold 9px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(activeBumperModifier < 0 ? '-1' : '+3', 0, badgeY + badgeH / 2 + 0.5);
     }
     ctx.restore();
   }
