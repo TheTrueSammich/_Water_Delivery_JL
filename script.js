@@ -1267,6 +1267,14 @@ function update() {
 // --- Main Loop ---
 function loop() {
   update();
+
+  const viewportW = Math.min(window.innerWidth, document.documentElement.clientWidth || window.innerWidth);
+  if (viewportW < 800) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    requestAnimationFrame(loop);
+    return;
+  }
+
   drawSky();
   drawClouds();
   drawLevelProgressBar();

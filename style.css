@@ -17,3 +17,83 @@ body {
 #gameCanvas:active {
   cursor: grabbing;
 }
+
+#mobilePipes {
+  display: none;
+}
+
+@media (max-width: 799px) {
+  body {
+    position: relative;
+    min-height: 100vh;
+    background: linear-gradient(180deg, #1a6fa0 0%, #87ceeb 50%, #b8e4f7 100%);
+  }
+
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    will-change: transform;
+  }
+
+  body::before {
+    opacity: 0.9;
+    background-image:
+      radial-gradient(95px 52px at 13% 10%, rgba(255, 255, 255, 0.94) 0 52%, rgba(255, 255, 255, 0.58) 72%, transparent 100%),
+      radial-gradient(72px 40px at 18% 12%, rgba(255, 255, 255, 0.9) 0 50%, rgba(255, 255, 255, 0.52) 72%, transparent 100%),
+      radial-gradient(70px 38px at 8% 12%, rgba(255, 255, 255, 0.88) 0 50%, rgba(255, 255, 255, 0.5) 72%, transparent 100%),
+      radial-gradient(110px 58px at 42% 14%, rgba(255, 255, 255, 0.92) 0 54%, rgba(255, 255, 255, 0.56) 74%, transparent 100%),
+      radial-gradient(74px 41px at 48% 16%, rgba(255, 255, 255, 0.88) 0 50%, rgba(255, 255, 255, 0.5) 72%, transparent 100%),
+      radial-gradient(78px 43px at 36% 16%, rgba(255, 255, 255, 0.86) 0 50%, rgba(255, 255, 255, 0.5) 72%, transparent 100%),
+      radial-gradient(100px 54px at 71% 11%, rgba(255, 255, 255, 0.92) 0 53%, rgba(255, 255, 255, 0.56) 73%, transparent 100%),
+      radial-gradient(70px 38px at 76% 13%, rgba(255, 255, 255, 0.87) 0 49%, rgba(255, 255, 255, 0.48) 70%, transparent 100%),
+      radial-gradient(68px 36px at 66% 13%, rgba(255, 255, 255, 0.85) 0 49%, rgba(255, 255, 255, 0.46) 70%, transparent 100%);
+    animation: cloudDriftNear 42s linear infinite alternate;
+  }
+
+  body::after {
+    opacity: 0.64;
+    background-image:
+      radial-gradient(86px 44px at 24% 24%, rgba(255, 255, 255, 0.72) 0 52%, rgba(255, 255, 255, 0.36) 73%, transparent 100%),
+      radial-gradient(64px 34px at 29% 26%, rgba(255, 255, 255, 0.64) 0 50%, rgba(255, 255, 255, 0.3) 70%, transparent 100%),
+      radial-gradient(62px 33px at 20% 26%, rgba(255, 255, 255, 0.62) 0 50%, rgba(255, 255, 255, 0.28) 70%, transparent 100%),
+      radial-gradient(80px 42px at 58% 21%, rgba(255, 255, 255, 0.68) 0 52%, rgba(255, 255, 255, 0.34) 73%, transparent 100%),
+      radial-gradient(61px 32px at 63% 23%, rgba(255, 255, 255, 0.6) 0 49%, rgba(255, 255, 255, 0.28) 69%, transparent 100%),
+      radial-gradient(92px 48px at 86% 25%, rgba(255, 255, 255, 0.7) 0 52%, rgba(255, 255, 255, 0.34) 73%, transparent 100%),
+      radial-gradient(66px 35px at 91% 27%, rgba(255, 255, 255, 0.6) 0 49%, rgba(255, 255, 255, 0.28) 69%, transparent 100%);
+    animation: cloudDriftFar 58s linear infinite alternate;
+  }
+
+  @keyframes cloudDriftNear {
+    from { transform: translateX(-2vw); }
+    to { transform: translateX(2vw); }
+  }
+
+  @keyframes cloudDriftFar {
+    from { transform: translateX(2vw); }
+    to { transform: translateX(-2vw); }
+  }
+
+  #gameCanvas {
+    display: none;
+  }
+
+  #mobilePipes {
+    display: block;
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 30vh;
+    pointer-events: none;
+    background:
+      linear-gradient(#77A8BB, #77A8BB) left calc(5% + 22px) top 0 / 18% 100% no-repeat,
+      linear-gradient(#FFC907, #FFC907) left calc(31% + 22px) top 0 / 18% 100% no-repeat,
+      linear-gradient(#BF6C46, #BF6C46) left calc(57% + 22px) top 0 / 18% 100% no-repeat,
+      linear-gradient(#69DC69, #69DC69) left calc(83% + 22px) top 0 / 18% 100% no-repeat;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    z-index: 1;
+  }
+}
