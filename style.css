@@ -9,6 +9,25 @@ body {
   background: #000;
 }
 
+#globalResetBtn {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  padding: 12px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 11px;
+  background: rgba(16, 34, 57, 0.9);
+  color: #ffffff;
+  font: 700 15px/1 Arial, sans-serif;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+}
+
+#globalResetBtn:active {
+  transform: translateY(1px);
+}
+
 #gameCanvas {
   display: block;
   cursor: grab;
@@ -118,6 +137,14 @@ body {
     color: #ffffff;
     font: 700 14px/1.2 Arial, sans-serif;
     z-index: 4;
+  }
+
+  #globalResetBtn {
+    top: 12px;
+    right: 12px;
+    padding: 10px 15px;
+    font-size: 14px;
+    z-index: 25;
   }
 
   .mobileHudItem {

@@ -9,6 +9,7 @@ const mobileDropBallEl = document.getElementById('mobileDropBall');
 const mobileMegaBouncyEl = document.getElementById('mobileMegaBouncy');
 const mobileBumpersEl = document.getElementById('mobileBumpers');
 const mobileResetBallBtnEl = document.getElementById('mobileResetBallBtn');
+const globalResetBtnEl = document.getElementById('globalResetBtn');
 
 const MOBILE_BREAKPOINT = 800;
 const MOBILE_BALL_R = 24;
@@ -51,6 +52,7 @@ let mobileMegaBouncyPositions = [
   { xPct: 50, yPct: 46 },
   { xPct: 66, yPct: 46 },
 ];
+let desktopBumperLayout = [];
 const MOBILE_PIPE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
 
 function resize() {
@@ -131,6 +133,9 @@ let restartBtn = { x: 0, y: 0, w: 0, h: 0 };
 let resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
 let shotStartedAtMs = 0;
 let wallGrowthStartedAtMs = 0;
+let activeBumperModifier = 0;
+let rustedDesktopHitIndices = new Set();
+let rustedMobileHitIndices = new Set();
 let levelNoticeText = '';
 let levelNoticeUntilMs = 0;
 let desktopMegaBouncyPositions = [
@@ -164,9 +169,22 @@ function getSafeScore() {
   return Math.max(0, score);
 }
 
+function isRustedBumperIndex(index) {
+  return unlockedLevel >= 4 && index % 6 === 2;
+}
+
+function isGoldenBumperIndex(index) {
+  return unlockedLevel >= 4 && !isRustedBumperIndex(index) && index % 4 === 0;
+}
+
 function setScore(nextScore) {
+  const previousLevel = unlockedLevel;
   score = Math.max(0, nextScore);
   unlockedLevel = Math.max(unlockedLevel, getLevelForPoints(score));
+  if (previousLevel < 4 && unlockedLevel >= 4) {
+    randomizeMobileMegaBouncy();
+    randomizeDesktopMegaBouncy();
+  }
 }
 
 function pointsToNextLevel() {
@@ -199,6 +217,7 @@ function restartGame() {
     { xT: 0.5, yT: 0.45 },
     { xT: 0.66, yT: 0.45 },
   ];
+  desktopBumperLayout = [];
   showHint = true;
   resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   resetBird();
@@ -217,6 +236,9 @@ function resetBird() {
   lockedPipeIndex = -1;
   shotStartedAtMs = 0;
   wallGrowthStartedAtMs = 0;
+  activeBumperModifier = 0;
+  rustedDesktopHitIndices.clear();
+  rustedMobileHitIndices.clear();
   resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   aimX = bx;
   aimY = by;
@@ -262,10 +284,12 @@ function getMobileBumpers() {
 
   const w = window.innerWidth;
   const h = window.innerHeight;
-  return mobileBumperLayout.map((b) => ({
+  return mobileBumperLayout.map((b, i) => ({
     x: (b.xPct / 100) * w + MOBILE_BUMPER_X_OFFSET_PX,
     y: (b.yPct / 100) * h,
     r: MOBILE_BUMPER_R,
+    rusted: isRustedBumperIndex(i),
+    golden: isGoldenBumperIndex(i),
   }));
 }
 
@@ -291,26 +315,60 @@ function renderMobileMegaBouncy() {
 }
 
 function randomizeMobileMegaBouncy() {
-  const next = [];
-  const minDistPct = 18;
-  for (let i = 0; i < MOBILE_MEGA_BOUNCY_COUNT; i++) {
-    let placed = false;
-    for (let tries = 0; tries < 140; tries++) {
-      const xPct = Math.round((MOBILE_MEGA_BOUNCY_X_MIN_PCT + Math.random() * (MOBILE_MEGA_BOUNCY_X_MAX_PCT - MOBILE_MEGA_BOUNCY_X_MIN_PCT)) * 10) / 10;
-      const yPct = Math.round((MOBILE_MEGA_BOUNCY_Y_MIN_PCT + Math.random() * (MOBILE_MEGA_BOUNCY_Y_MAX_PCT - MOBILE_MEGA_BOUNCY_Y_MIN_PCT)) * 10) / 10;
-      const tooClose = next.some((c) => Math.hypot(xPct - c.xPct, yPct - c.yPct) < minDistPct);
-      if (tooClose) continue;
-      next.push({ xPct, yPct });
-      placed = true;
-      break;
+  const minCenterDistancePx = MOBILE_MEGA_BOUNCY_R * 2 + 8;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  function isClear(candidate, placed) {
+    const cx = (candidate.xPct / 100) * vw;
+    const cy = (candidate.yPct / 100) * vh;
+    return placed.every((other) => {
+      const ox = (other.xPct / 100) * vw;
+      const oy = (other.yPct / 100) * vh;
+      return Math.hypot(cx - ox, cy - oy) >= minCenterDistancePx;
+    });
+  }
+
+  for (let layoutTry = 0; layoutTry < 80; layoutTry++) {
+    const next = [];
+    let failed = false;
+
+    for (let i = 0; i < MOBILE_MEGA_BOUNCY_COUNT; i++) {
+      let placed = false;
+      for (let tries = 0; tries < 200; tries++) {
+        const candidate = {
+          xPct: Math.round((MOBILE_MEGA_BOUNCY_X_MIN_PCT + Math.random() * (MOBILE_MEGA_BOUNCY_X_MAX_PCT - MOBILE_MEGA_BOUNCY_X_MIN_PCT)) * 10) / 10,
+          yPct: Math.round((MOBILE_MEGA_BOUNCY_Y_MIN_PCT + Math.random() * (MOBILE_MEGA_BOUNCY_Y_MAX_PCT - MOBILE_MEGA_BOUNCY_Y_MIN_PCT)) * 10) / 10,
+        };
+        if (!isClear(candidate, next)) continue;
+        next.push(candidate);
+        placed = true;
+        break;
+      }
+
+      if (!placed) {
+        failed = true;
+        break;
+      }
     }
-    if (!placed) {
-      const fallback = mobileMegaBouncyPositions[i] || mobileMegaBouncyPositions[mobileMegaBouncyPositions.length - 1] || { xPct: 50, yPct: 46 };
-      next.push({ ...fallback });
+
+    if (!failed) {
+      mobileMegaBouncyPositions = next;
+      if (unlockedLevel >= 4) {
+        randomizeMobileBumpers();
+      } else {
+        resolveMobileBumperMegaCollisions();
+      }
+      renderMobileMegaBouncy();
+      return;
     }
   }
-  mobileMegaBouncyPositions = next;
-  resolveMobileBumperMegaCollisions();
+
+  if (unlockedLevel >= 4) {
+    randomizeMobileBumpers();
+  } else {
+    resolveMobileBumperMegaCollisions();
+  }
   renderMobileMegaBouncy();
 }
 
@@ -373,9 +431,14 @@ function renderMobileBumpers() {
   if (!mobileBumpersEl) return;
 
   const layers = [];
-  mobileBumperLayout.forEach((b) => {
+  mobileBumperLayout.forEach((b, i) => {
+    const rusted = isRustedBumperIndex(i);
+    const golden = isGoldenBumperIndex(i);
+    const inner = rusted ? '#b98567' : (golden ? '#d9fbff' : '#d9d9d9');
+    const mid = rusted ? '#7b4f36' : (golden ? '#64d4e4' : '#8e8e8e');
+    const outer = rusted ? '#4a2d1d' : (golden ? '#1f7da0' : '#5f5f5f');
     layers.push(
-      `radial-gradient(circle at calc(${b.xPct}% + ${MOBILE_BUMPER_X_OFFSET_PX}px) ${b.yPct}%, #d9d9d9 0 12px, #8e8e8e 13px 19px, #5f5f5f 20px 22px, transparent 23px)`,
+      `radial-gradient(circle at calc(${b.xPct}% + ${MOBILE_BUMPER_X_OFFSET_PX}px) ${b.yPct}%, ${inner} 0 12px, ${mid} 13px 19px, ${outer} 20px 22px, transparent 23px)`,
       `radial-gradient(circle at calc(${b.xPct}% + ${MOBILE_BUMPER_X_OFFSET_PX - 6}px) calc(${b.yPct}% - 6px), rgba(255, 255, 255, 0.26) 0 5px, transparent 6px)`,
     );
   });
@@ -383,36 +446,80 @@ function renderMobileBumpers() {
 }
 
 function randomizeMobileBumpers() {
-  const next = [];
-  const minDistPct = 13;
+  const count = MOBILE_BUMPERS_BASE.length;
+  const columns = 4;
+  const rows = Math.ceil(count / columns);
   const minXPct = 5;
   const maxXPct = 92;
   const minYPct = 28;
   const maxYPct = 66;
+  const bucketW = (maxXPct - minXPct) / columns;
+  const bucketH = (maxYPct - minYPct) / rows;
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const megas = getMobileMegaBouncies();
+  const minCenterDistancePx = MOBILE_BUMPER_R * 2 + 10;
+  const minMegaDistancePx = MOBILE_BUMPER_R + MOBILE_MEGA_BOUNCY_R + 8;
 
-  for (let i = 0; i < MOBILE_BUMPERS_BASE.length; i++) {
-    let placed = false;
-    for (let tries = 0; tries < 120; tries++) {
-      const t = Math.random();
-      const edgeBias = Math.random() < 0.6 ? (t < 0.5 ? t * t : 1 - (1 - t) * (1 - t)) : t;
-      const xPct = Math.round((minXPct + edgeBias * (maxXPct - minXPct)) * 10) / 10;
-      const yPct = Math.round((minYPct + Math.random() * (maxYPct - minYPct)) * 10) / 10;
-      const tooClose = next.some((b) => Math.hypot(xPct - b.xPct, yPct - b.yPct) < minDistPct);
-      const xPx = (xPct / 100) * vw + MOBILE_BUMPER_X_OFFSET_PX;
-      const yPx = (yPct / 100) * vh;
-      const collidesMega = megas.some((mega) => Math.hypot(xPx - mega.x, yPx - mega.y) < mega.r + MOBILE_BUMPER_R + 6);
-      if (tooClose || collidesMega) continue;
-      next.push({ xPct, yPct });
-      placed = true;
-      break;
-    }
-    if (!placed) next.push({ ...MOBILE_BUMPERS_BASE[i] });
+  function toPx(point) {
+    return {
+      x: (point.xPct / 100) * vw + MOBILE_BUMPER_X_OFFSET_PX,
+      y: (point.yPct / 100) * vh,
+    };
   }
 
-  mobileBumperLayout = next;
+  function isClear(candidate, placed) {
+    const current = toPx(candidate);
+    const clearBumpers = placed.every((other) => {
+      const compare = toPx(other);
+      return Math.hypot(current.x - compare.x, current.y - compare.y) >= minCenterDistancePx;
+    });
+    const clearMegas = megas.every((mega) => Math.hypot(current.x - mega.x, current.y - mega.y) >= minMegaDistancePx);
+    return clearBumpers && clearMegas;
+  }
+
+  for (let layoutTry = 0; layoutTry < 100; layoutTry++) {
+    const next = [];
+    let failed = false;
+
+    const buckets = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        buckets.push({ col, row });
+      }
+    }
+    for (let i = buckets.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [buckets[i], buckets[j]] = [buckets[j], buckets[i]];
+    }
+
+    for (let i = 0; i < count; i++) {
+      let placed = false;
+      const bucket = buckets[i];
+      for (let tries = 0; tries < 80; tries++) {
+        const candidate = {
+          xPct: Math.round((minXPct + (bucket.col + 0.2 + Math.random() * 0.6) * bucketW) * 10) / 10,
+          yPct: Math.round((minYPct + (bucket.row + 0.2 + Math.random() * 0.6) * bucketH) * 10) / 10,
+        };
+        if (!isClear(candidate, next)) continue;
+        next.push(candidate);
+        placed = true;
+        break;
+      }
+
+      if (!placed) {
+        failed = true;
+        break;
+      }
+    }
+
+    if (!failed) {
+      mobileBumperLayout = next;
+      renderMobileBumpers();
+      return;
+    }
+  }
+
   renderMobileBumpers();
 }
 
@@ -437,6 +544,26 @@ function getMobileBouncePads() {
 function renderMobileDropBall() {
   if (!mobileDropBallEl) return;
   mobileDropBallEl.style.transform = `translate(${mobileDrop.x - MOBILE_BALL_R}px, ${mobileDrop.y - MOBILE_BALL_R}px)`;
+  if (activeBumperModifier < 0) {
+    mobileDropBallEl.style.background = '#d8b08f';
+    mobileDropBallEl.style.boxShadow = '0 0 0 2px rgba(123, 79, 54, 0.6), 0 10px 20px rgba(74, 45, 29, 0.28)';
+  } else if (activeBumperModifier > 0) {
+    mobileDropBallEl.style.background = '#d7fbff';
+    mobileDropBallEl.style.boxShadow = '0 0 0 2px rgba(31, 125, 160, 0.55), 0 10px 20px rgba(31, 125, 160, 0.24)';
+  } else {
+    mobileDropBallEl.style.background = '#ffffff';
+    mobileDropBallEl.style.boxShadow = '';
+  }
+  const img = mobileDropBallEl.querySelector('img');
+  if (img) {
+    if (activeBumperModifier < 0) {
+      img.style.filter = 'sepia(0.95) saturate(1.55) hue-rotate(-12deg) brightness(0.86)';
+    } else if (activeBumperModifier > 0) {
+      img.style.filter = 'saturate(1.35) hue-rotate(12deg) brightness(1.08)';
+    } else {
+      img.style.filter = 'none';
+    }
+  }
 }
 
 function resetMobileDropBall() {
@@ -450,6 +577,9 @@ function resetMobileDropBall() {
   mobileActivePointerId = null;
   shotStartedAtMs = 0;
   wallGrowthStartedAtMs = 0;
+  activeBumperModifier = 0;
+  rustedDesktopHitIndices.clear();
+  rustedMobileHitIndices.clear();
   launched = false;
   renderMobileDropBall();
 }
@@ -676,59 +806,65 @@ function getDesktopMegaBouncies() {
 
 function randomizeDesktopMegaBouncy() {
   if (unlockedLevel < 3) return;
-  const next = [];
-  const minDistT = 0.2;
-  for (let i = 0; i < MOBILE_MEGA_BOUNCY_COUNT; i++) {
-    let placed = false;
-    for (let tries = 0; tries < 120; tries++) {
-      const xT = Math.random();
-      const yT = Math.random();
-      const tooClose = next.some((p) => Math.hypot(xT - p.xT, yT - p.yT) < minDistT);
-      if (tooClose) continue;
-      next.push({ xT, yT });
-      placed = true;
-      break;
+  const bounds = getDesktopMegaBouncyBounds();
+  const minCenterDistancePx = DESKTOP_MEGA_BOUNCY_R * 2 + 8;
+
+  function toPx(point) {
+    return {
+      x: bounds.xMin + (bounds.xMax - bounds.xMin) * point.xT,
+      y: bounds.yMin + (bounds.yMax - bounds.yMin) * point.yT,
+    };
+  }
+
+  function isClear(candidate, placed) {
+    const current = toPx(candidate);
+    return placed.every((other) => {
+      const compare = toPx(other);
+      return Math.hypot(current.x - compare.x, current.y - compare.y) >= minCenterDistancePx;
+    });
+  }
+
+  for (let layoutTry = 0; layoutTry < 80; layoutTry++) {
+    const next = [];
+    let failed = false;
+
+    for (let i = 0; i < MOBILE_MEGA_BOUNCY_COUNT; i++) {
+      let placed = false;
+      for (let tries = 0; tries < 200; tries++) {
+        const candidate = { xT: Math.random(), yT: Math.random() };
+        if (!isClear(candidate, next)) continue;
+        next.push(candidate);
+        placed = true;
+        break;
+      }
+
+      if (!placed) {
+        failed = true;
+        break;
+      }
     }
-    if (!placed) {
-      const fallback = desktopMegaBouncyPositions[i] || desktopMegaBouncyPositions[desktopMegaBouncyPositions.length - 1] || { xT: 0.5, yT: 0.45 };
-      next.push({ ...fallback });
+
+    if (!failed) {
+      desktopMegaBouncyPositions = next;
+      if (unlockedLevel >= 4) {
+        randomizeDesktopBumpers();
+      }
+      return;
     }
   }
-  desktopMegaBouncyPositions = next;
 }
 
-function getPipeReward(color) {
-  if (color === '#77A8BB') return 0;
-  if (color === '#FFC907') return 5;
-  if (color === '#BF6C46') return unlockedLevel >= 3 ? -5 : -3;
-  if (color === '#69DC69') return 3;
-  return 0;
+function getDesktopBumperBounds() {
+  const layout = getPipeLayout();
+  const topY = gY() - PIPE_H;
+  const xMin = layout.startX + BUMPER_R;
+  const xMax = layout.startX + (layout.colors.length - 1) * (PIPE_W + layout.evenGap) + PIPE_W - BUMPER_R;
+  const yMin = Math.max(48, topY - 520);
+  const yMax = Math.max(yMin + 20, topY - 110);
+  return { xMin, xMax, yMin, yMax };
 }
 
-function applyPipeOutcome(color) {
-  const reward = getPipeReward(color);
-  setScore(score + reward);
-  if (color === '#77A8BB') {
-    waterCount += 5;
-  } else if ((color === '#FFC907' || color === '#69DC69') && unlockedLevel >= 2) {
-    randomizeMobileBumpers();
-  }
-  updateUnlockedLevel();
-  if (reward > 0) {
-    if (unlockedLevel >= 3) {
-      randomizeMobileMegaBouncy();
-      randomizeDesktopMegaBouncy();
-    }
-  }
-  while (score >= nextWaterBonusAt) {
-    waterCount += 1;
-    nextWaterBonusAt += 10;
-  }
-}
-
-function getBumpers() {
-  if (unlockedLevel < 2) return [];
-
+function buildDefaultDesktopBumpers() {
   const layout = getPipeLayout();
   const topY = gY() - PIPE_H;
   const bumpers = [];
@@ -758,7 +894,6 @@ function getBumpers() {
     }
   }
 
-  // Plinko-like triangular grid: fewer pegs, intentional stagger.
   const rowDefs = [
     { count: 7, yOffset: 500, shift: 0.00 },
     { count: 6, yOffset: 430, shift: 0.50 },
@@ -770,34 +905,157 @@ function getBumpers() {
   rowDefs.forEach((row, rowIdx) => {
     const step = fieldW / row.count;
     for (let i = 0; i < row.count; i++) {
-      // Trim two left-side pegs for a little more opening on that side.
       if ((rowIdx === 3 || rowIdx === 4) && i === 0) continue;
       const baseX = fieldLeft + step * (i + 0.5 + row.shift);
       const jitterX = ((i + rowIdx) % 2 === 0 ? -1 : 1) * 6;
       const jitterY = ((i * 7 + rowIdx * 3) % 3) * 10;
-      const r = BUMPER_R;
-      tryAdd(baseX + jitterX, topY - row.yOffset - jitterY, r);
+      tryAdd(baseX + jitterX, topY - row.yOffset - jitterY, BUMPER_R);
     }
   });
 
-  // Gap blockers near the bottom prevent dead-center drops between pipes.
   gapCenters.forEach((gx, i) => {
     if (i % 2 !== 0) return;
     tryAdd(gx, topY - 118 - (i % 2) * 10, BUMPER_R);
   });
 
-  // Pipe-center guides create a final funnel into each pipe opening.
   pipeCenters.forEach((cx, i) => {
     if (i % 2 !== 0) return;
     const side = i % 2 === 0 ? -1 : 1;
     tryAdd(cx + side * 22, topY - 168 - (i % 3) * 8, BUMPER_R);
   });
 
-  // Subtle side guides to keep long bounces in bounds.
   tryAdd(fieldLeft - 6, topY - 300, BUMPER_R);
   tryAdd(fieldRight + 6, topY - 300, BUMPER_R);
 
   return bumpers;
+}
+
+function getDesktopBumperPositions() {
+  if (unlockedLevel < 4 || desktopBumperLayout.length === 0) {
+    return buildDefaultDesktopBumpers();
+  }
+
+  const bounds = getDesktopBumperBounds();
+  return desktopBumperLayout.map((point) => ({
+    x: bounds.xMin + (bounds.xMax - bounds.xMin) * point.xT,
+    y: bounds.yMin + (bounds.yMax - bounds.yMin) * point.yT,
+    r: BUMPER_R,
+  }));
+}
+
+function randomizeDesktopBumpers() {
+  if (unlockedLevel < 4) return;
+
+  const bounds = getDesktopBumperBounds();
+  const megas = getDesktopMegaBouncies();
+  const count = buildDefaultDesktopBumpers().length;
+  const columns = Math.max(6, Math.ceil(Math.sqrt(count)));
+  const rows = Math.ceil(count / columns);
+  const minCenterDistancePx = BUMPER_R * 2 + 10;
+  const minMegaDistancePx = BUMPER_R + DESKTOP_MEGA_BOUNCY_R + 10;
+
+  function toPx(point) {
+    return {
+      x: bounds.xMin + (bounds.xMax - bounds.xMin) * point.xT,
+      y: bounds.yMin + (bounds.yMax - bounds.yMin) * point.yT,
+    };
+  }
+
+  function isClear(candidate, placed) {
+    const current = toPx(candidate);
+    const clearBumpers = placed.every((other) => {
+      const compare = toPx(other);
+      return Math.hypot(current.x - compare.x, current.y - compare.y) >= minCenterDistancePx;
+    });
+    const clearMegas = megas.every((mega) => Math.hypot(current.x - mega.x, current.y - mega.y) >= minMegaDistancePx);
+    return clearBumpers && clearMegas;
+  }
+
+  for (let layoutTry = 0; layoutTry < 100; layoutTry++) {
+    const next = [];
+    let failed = false;
+
+    const buckets = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        buckets.push({ col, row });
+      }
+    }
+    for (let i = buckets.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [buckets[i], buckets[j]] = [buckets[j], buckets[i]];
+    }
+
+    for (let i = 0; i < count; i++) {
+      let placed = false;
+      const bucket = buckets[i];
+      for (let tries = 0; tries < 100; tries++) {
+        const candidate = {
+          xT: (bucket.col + 0.2 + Math.random() * 0.6) / columns,
+          yT: (bucket.row + 0.2 + Math.random() * 0.6) / rows,
+        };
+        if (!isClear(candidate, next)) continue;
+        next.push(candidate);
+        placed = true;
+        break;
+      }
+
+      if (!placed) {
+        failed = true;
+        break;
+      }
+    }
+
+    if (!failed) {
+      desktopBumperLayout = next;
+      return;
+    }
+  }
+
+  desktopBumperLayout = [];
+}
+
+function getPipeReward(color) {
+  if (color === '#77A8BB') return 0;
+  if (color === '#FFC907') return 5;
+  if (color === '#BF6C46') return unlockedLevel >= 3 ? -5 : -3;
+  if (color === '#69DC69') return 3;
+  return 0;
+}
+
+function applyPipeOutcome(color) {
+  const reward = getPipeReward(color);
+  const adjustedReward = reward + activeBumperModifier;
+  setScore(score + adjustedReward);
+  if (color === '#77A8BB') {
+    waterCount += 5;
+  } else if ((color === '#FFC907' || color === '#69DC69') && unlockedLevel >= 2) {
+    randomizeMobileBumpers();
+  }
+  updateUnlockedLevel();
+  if (reward > 0) {
+    if (unlockedLevel >= 3) {
+      randomizeMobileMegaBouncy();
+      randomizeDesktopMegaBouncy();
+    }
+  }
+  while (score >= nextWaterBonusAt) {
+    waterCount += 1;
+    nextWaterBonusAt += 10;
+  }
+
+  activeBumperModifier = 0;
+}
+
+function getBumpers() {
+  if (unlockedLevel < 2) return [];
+  const bumpers = getDesktopBumperPositions();
+
+  return bumpers.map((b, i) => ({
+    ...b,
+    rusted: isRustedBumperIndex(i),
+    golden: isGoldenBumperIndex(i),
+  }));
 }
 
 function drawPipes() {
@@ -877,11 +1135,21 @@ function drawPipes() {
 function drawBumpers() {
   const bumpers = getBumpers();
 
-  bumpers.forEach(({ x, y, r }) => {
+  bumpers.forEach(({ x, y, r, rusted, golden }) => {
     const g = ctx.createRadialGradient(x - r * 0.28, y - r * 0.32, r * 0.3, x, y, r);
-    g.addColorStop(0, '#d9d9d9');
-    g.addColorStop(0.65, '#8e8e8e');
-    g.addColorStop(1, '#5f5f5f');
+    if (rusted) {
+      g.addColorStop(0, '#b98567');
+      g.addColorStop(0.65, '#7b4f36');
+      g.addColorStop(1, '#4a2d1d');
+    } else if (golden) {
+      g.addColorStop(0, '#d9fbff');
+      g.addColorStop(0.65, '#64d4e4');
+      g.addColorStop(1, '#1f7da0');
+    } else {
+      g.addColorStop(0, '#d9d9d9');
+      g.addColorStop(0.65, '#8e8e8e');
+      g.addColorStop(1, '#5f5f5f');
+    }
 
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -1216,7 +1484,13 @@ function drawBird(x, y) {
 
   ctx.beginPath();
   ctx.arc(x, y, BIRD_R, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
+  if (activeBumperModifier < 0) {
+    ctx.fillStyle = '#e2c1a5';
+  } else if (activeBumperModifier > 0) {
+    ctx.fillStyle = '#d9fbff';
+  } else {
+    ctx.fillStyle = '#ffffff';
+  }
   ctx.fill();
 
   if (canImage.complete && canImage.naturalWidth > 0) {
@@ -1235,13 +1509,30 @@ function drawBird(x, y) {
     ctx.arc(0, 0, imgR, 0, Math.PI * 2);
     ctx.clip();
     ctx.drawImage(canImage, -drawW / 2, -drawH / 2, drawW, drawH);
+    if (activeBumperModifier < 0) {
+      ctx.fillStyle = 'rgba(125, 78, 46, 0.35)';
+      ctx.beginPath();
+      ctx.arc(0, 0, imgR, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (activeBumperModifier > 0) {
+      ctx.fillStyle = 'rgba(100, 212, 228, 0.2)';
+      ctx.beginPath();
+      ctx.arc(0, 0, imgR, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
   ctx.beginPath();
   ctx.arc(x, y, BIRD_R, 0, Math.PI * 2);
   ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  if (activeBumperModifier < 0) {
+    ctx.strokeStyle = 'rgba(123,79,54,0.92)';
+  } else if (activeBumperModifier > 0) {
+    ctx.strokeStyle = 'rgba(31,125,160,0.92)';
+  } else {
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  }
   ctx.stroke();
 }
 
@@ -1520,7 +1811,7 @@ function handleRightBarrierCollision() {
 function handleBumperCollisions() {
   const bumpers = getBumpers();
 
-  bumpers.forEach(({ x, y, r }) => {
+  bumpers.forEach(({ x, y, r, rusted, golden }, i) => {
     const dx = bx - x;
     const dy = by - y;
     const minDist = BIRD_R + r;
@@ -1553,6 +1844,14 @@ function handleBumperCollisions() {
       bvx += nx * pop;
       bvy += ny * pop;
     }
+
+    if (rusted) {
+      activeBumperModifier = -1;
+    }
+
+    if (golden) {
+      activeBumperModifier = 3;
+    }
   });
 }
 
@@ -1579,12 +1878,12 @@ function handleDesktopMegaBouncyCollision() {
 
     const vn = bvx * nx + bvy * ny;
     if (vn < 0) {
-      const restitution = 1.12;
+      const restitution = 1.16;
       bvx -= (1 + restitution) * vn * nx;
       bvy -= (1 + restitution) * vn * ny;
-      bvx += nx * 0.9;
-      bvy += ny * 0.9;
-      if (ny < -0.2) bvy -= 2.2;
+      bvx += nx * 1.05;
+      bvy += ny * 1.05;
+      if (ny < -0.2) bvy -= 2.45;
     }
   });
 
@@ -1808,16 +2107,16 @@ function updateMobileDropPhysics() {
 
         const vn = mobileDrop.vx * nx + mobileDrop.vy * ny;
         if (vn < 0) {
-          const restitution = 1.16;
+          const restitution = 1.2;
           mobileDrop.vx -= (1 + restitution) * vn * nx;
           mobileDrop.vy -= (1 + restitution) * vn * ny;
 
-          const pop = 3.2;
+          const pop = 3.5;
           mobileDrop.vx += nx * pop;
           mobileDrop.vy += ny * pop;
 
           if (ny < -0.2) {
-            mobileDrop.vy -= 2.6;
+            mobileDrop.vy -= 2.9;
           }
         }
       }
@@ -1825,7 +2124,7 @@ function updateMobileDropPhysics() {
   }
 
   const bumpers = getMobileBumpers();
-  bumpers.forEach((b) => {
+  bumpers.forEach((b, i) => {
     const dx = mobileDrop.x - b.x;
     const dy = mobileDrop.y - b.y;
     const minDist = MOBILE_BALL_R + b.r;
@@ -1846,6 +2145,14 @@ function updateMobileDropPhysics() {
       mobileDrop.vy -= (1 + 0.78) * vn * ny;
       mobileDrop.vx += nx * 0.4;
       mobileDrop.vy += ny * 0.4;
+    }
+
+    if (b.rusted) {
+      activeBumperModifier = -1;
+    }
+
+    if (b.golden) {
+      activeBumperModifier = 3;
     }
   });
 
@@ -1983,7 +2290,6 @@ function loop() {
 
   drawSky();
   drawClouds();
-  drawLevelProgressBar();
   drawHud();
   drawLevelNotice();
   drawGround();
@@ -1998,6 +2304,7 @@ function loop() {
   drawTrail();
   drawBird(bx, by);
   drawPipes();
+  drawLevelProgressBar();
   drawBandSegment('right');  // in front of bird
   drawResetBallButton();
   drawHint();
@@ -2213,5 +2520,11 @@ if (mobileResetBallBtnEl) {
 
     gameOver = false;
     resetMobileDropBall();
+  });
+}
+
+if (globalResetBtnEl) {
+  globalResetBtnEl.addEventListener('click', () => {
+    restartGame();
   });
 }
