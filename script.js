@@ -6,6 +6,7 @@ const mobileLevelEl = document.getElementById('mobileLevelCount');
 const mobileNextLevelTextEl = document.getElementById('mobileNextLevelText');
 const mobileNextLevelFillEl = document.getElementById('mobileNextLevelFill');
 const mobileDropBallEl = document.getElementById('mobileDropBall');
+const mobileMegaBouncyEl = document.getElementById('mobileMegaBouncy');
 const mobileBumpersEl = document.getElementById('mobileBumpers');
 const mobileResetBallBtnEl = document.getElementById('mobileResetBallBtn');
 
@@ -22,8 +23,12 @@ const MOBILE_PIPE_HEIGHT_VH = 22;
 const MOBILE_PIPE_ENTRY_DEPTH_PX = 14;
 const MOBILE_AIM_MIN_Y = 130;
 const MOBILE_AIM_BOTTOM_ZONE_PX = 700;
+const MOBILE_TOP_BOUNCY_SQUARE_TOP = 0;
+const MOBILE_MEGA_BOUNCY_X_PCT_DEFAULT = 50;
+const MOBILE_MEGA_BOUNCY_Y_PCT_DEFAULT = 46;
+const MOBILE_MEGA_BOUNCY_R = 52;
 const MOBILE_BUMPER_R = 22;
-const MOBILE_BUMPERS = [
+const MOBILE_BUMPERS_BASE = [
   { xPct: 5,  yPct: 44 },
   { xPct: 14, yPct: 37 },
   { xPct: 31, yPct: 29 },
@@ -37,6 +42,11 @@ const MOBILE_BUMPERS = [
   { xPct: 77, yPct: 64 },
   { xPct: 92, yPct: 52 },
 ];
+let mobileBumperLayout = MOBILE_BUMPERS_BASE.map((b) => ({ ...b }));
+let mobileMegaBouncyPos = {
+  xPct: MOBILE_MEGA_BOUNCY_X_PCT_DEFAULT,
+  yPct: MOBILE_MEGA_BOUNCY_Y_PCT_DEFAULT,
+};
 const MOBILE_PIPE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
 
 function resize() {
@@ -48,6 +58,8 @@ window.addEventListener('resize', () => {
   resize();
   resetBird();
   resetMobileDropBall();
+  renderMobileBumpers();
+  renderMobileMegaBouncy();
 });
 
 // --- Layout constants ---
@@ -188,6 +200,8 @@ function resetBird() {
 }
 resetBird();
 resetMobileDropBall();
+renderMobileBumpers();
+renderMobileMegaBouncy();
 
 function scheduleReset(ms) {
   if (!pending) {
@@ -225,11 +239,98 @@ function getMobileBumpers() {
 
   const w = window.innerWidth;
   const h = window.innerHeight;
-  return MOBILE_BUMPERS.map((b) => ({
+  return mobileBumperLayout.map((b) => ({
     x: (b.xPct / 100) * w + MOBILE_BUMPER_X_OFFSET_PX,
     y: (b.yPct / 100) * h,
     r: MOBILE_BUMPER_R,
   }));
+}
+
+function getMobileMegaBouncy() {
+  if (unlockedLevel < 3) return null;
+
+  return {
+    x: (mobileMegaBouncyPos.xPct / 100) * window.innerWidth,
+    y: (mobileMegaBouncyPos.yPct / 100) * window.innerHeight,
+    r: MOBILE_MEGA_BOUNCY_R,
+  };
+}
+
+function renderMobileMegaBouncy() {
+  if (!mobileMegaBouncyEl) return;
+  const orb = mobileMegaBouncyEl.querySelector('.mobileMegaBouncyOrb');
+  if (!orb) return;
+  orb.style.left = `${mobileMegaBouncyPos.xPct}%`;
+  orb.style.top = `${mobileMegaBouncyPos.yPct}%`;
+}
+
+function randomizeMobileMegaBouncy() {
+  const minXPct = 12;
+  const maxXPct = 88;
+  const minYPct = 34;
+  const maxYPct = 58;
+  mobileMegaBouncyPos = {
+    xPct: Math.round((minXPct + Math.random() * (maxXPct - minXPct)) * 10) / 10,
+    yPct: Math.round((minYPct + Math.random() * (maxYPct - minYPct)) * 10) / 10,
+  };
+  renderMobileMegaBouncy();
+}
+
+function getMobileTopBouncySquare() {
+  const size = window.innerWidth;
+  return {
+    x: 0,
+    y: MOBILE_TOP_BOUNCY_SQUARE_TOP - size,
+    w: size,
+    h: size,
+  };
+}
+
+function renderMobileBumpers() {
+  if (!mobileBumpersEl) return;
+
+  const layers = [];
+  mobileBumperLayout.forEach((b) => {
+    layers.push(
+      `radial-gradient(circle at calc(${b.xPct}% + ${MOBILE_BUMPER_X_OFFSET_PX}px) ${b.yPct}%, #d9d9d9 0 12px, #8e8e8e 13px 19px, #5f5f5f 20px 22px, transparent 23px)`,
+      `radial-gradient(circle at calc(${b.xPct}% + ${MOBILE_BUMPER_X_OFFSET_PX - 6}px) calc(${b.yPct}% - 6px), rgba(255, 255, 255, 0.26) 0 5px, transparent 6px)`,
+    );
+  });
+  mobileBumpersEl.style.background = layers.join(',\n      ');
+}
+
+function randomizeMobileBumpers() {
+  const next = [];
+  const minDistPct = 13;
+  const minXPct = 5;
+  const maxXPct = 92;
+  const minYPct = 28;
+  const maxYPct = 66;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const mega = getMobileMegaBouncy();
+
+  for (let i = 0; i < MOBILE_BUMPERS_BASE.length; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 120; tries++) {
+      const t = Math.random();
+      const edgeBias = Math.random() < 0.6 ? (t < 0.5 ? t * t : 1 - (1 - t) * (1 - t)) : t;
+      const xPct = Math.round((minXPct + edgeBias * (maxXPct - minXPct)) * 10) / 10;
+      const yPct = Math.round((minYPct + Math.random() * (maxYPct - minYPct)) * 10) / 10;
+      const tooClose = next.some((b) => Math.hypot(xPct - b.xPct, yPct - b.yPct) < minDistPct);
+      const xPx = (xPct / 100) * vw + MOBILE_BUMPER_X_OFFSET_PX;
+      const yPx = (yPct / 100) * vh;
+      const collidesMega = mega && Math.hypot(xPx - mega.x, yPx - mega.y) < mega.r + MOBILE_BUMPER_R + 6;
+      if (tooClose || collidesMega) continue;
+      next.push({ xPct, yPct });
+      placed = true;
+      break;
+    }
+    if (!placed) next.push({ ...MOBILE_BUMPERS_BASE[i] });
+  }
+
+  mobileBumperLayout = next;
+  renderMobileBumpers();
 }
 
 function getMobileBouncePads() {
@@ -257,7 +358,7 @@ function renderMobileDropBall() {
 
 function resetMobileDropBall() {
   mobileDrop.x = window.innerWidth * 0.5;
-  mobileDrop.y = 118;
+  mobileDrop.y = 160;
   mobileDrop.vx = 0;
   mobileDrop.vy = 0;
   mobileDrop.pressing = false;
@@ -317,6 +418,10 @@ function syncMobileHud() {
 
   if (mobileBumpersEl) {
     mobileBumpersEl.style.display = isMobileViewport() && level >= 2 ? 'block' : 'none';
+  }
+
+  if (mobileMegaBouncyEl) {
+    mobileMegaBouncyEl.style.display = isMobileViewport() && level >= 3 ? 'block' : 'none';
   }
 
   if (mobileResetBallBtnEl) {
@@ -473,9 +578,15 @@ function getPipeReward(color) {
 }
 
 function applyPipeOutcome(color) {
-  setScore(score + getPipeReward(color));
+  const reward = getPipeReward(color);
+  setScore(score + reward);
   if (color === '#77A8BB') {
     waterCount += 5;
+  } else if (color === '#FFC907' || color === '#69DC69') {
+    randomizeMobileBumpers();
+  }
+  if (reward > 0) {
+    randomizeMobileMegaBouncy();
   }
   updateUnlockedLevel();
   while (score >= nextWaterBonusAt) {
@@ -696,7 +807,7 @@ function drawLevelProgressBar() {
   drawRoundedRect(barX, barY, barW, barH, 12);
   ctx.fill();
 
-  ctx.fillStyle = '#6fd08c';
+  ctx.fillStyle = '#516BFF';
   drawRoundedRect(barX, barY, fillW, barH, 12);
   ctx.fill();
 
@@ -1427,6 +1538,90 @@ function updateMobileDropPhysics() {
   } else if (mobileDrop.x + MOBILE_BALL_R > w) {
     mobileDrop.x = w - MOBILE_BALL_R;
     mobileDrop.vx *= -MOBILE_BALL_RESTITUTION;
+  }
+
+  const topSquare = getMobileTopBouncySquare();
+  const closestX = Math.max(topSquare.x, Math.min(mobileDrop.x, topSquare.x + topSquare.w));
+  const closestY = Math.max(topSquare.y, Math.min(mobileDrop.y, topSquare.y + topSquare.h));
+  const sdx = mobileDrop.x - closestX;
+  const sdy = mobileDrop.y - closestY;
+  const sDistSq = sdx * sdx + sdy * sdy;
+
+  if (sDistSq < MOBILE_BALL_R * MOBILE_BALL_R) {
+    const dist = Math.sqrt(sDistSq);
+    let nx = 0;
+    let ny = -1;
+    let penetration = MOBILE_BALL_R;
+
+    if (dist > 0.0001) {
+      nx = sdx / dist;
+      ny = sdy / dist;
+      penetration = MOBILE_BALL_R - dist;
+    } else {
+      const overlapLeft = Math.abs(mobileDrop.x - topSquare.x);
+      const overlapRight = Math.abs(topSquare.x + topSquare.w - mobileDrop.x);
+      const overlapTop = Math.abs(mobileDrop.y - topSquare.y);
+      const overlapBottom = Math.abs(topSquare.y + topSquare.h - mobileDrop.y);
+      const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+      if (minOverlap === overlapLeft) {
+        nx = -1; ny = 0; penetration = MOBILE_BALL_R;
+      } else if (minOverlap === overlapRight) {
+        nx = 1; ny = 0; penetration = MOBILE_BALL_R;
+      } else if (minOverlap === overlapTop) {
+        nx = 0; ny = -1; penetration = MOBILE_BALL_R;
+      } else {
+        nx = 0; ny = 1; penetration = MOBILE_BALL_R;
+      }
+    }
+
+    mobileDrop.x += nx * penetration;
+    mobileDrop.y += ny * penetration;
+
+    // Inverse bounce: this square always sends the ball downward.
+    const minYBelowSquare = topSquare.y + topSquare.h + MOBILE_BALL_R;
+    if (mobileDrop.y < minYBelowSquare) {
+      mobileDrop.y = minYBelowSquare;
+    }
+
+    const squareCenterX = topSquare.x + topSquare.w * 0.5;
+    const sidePush = (mobileDrop.x - squareCenterX) * 0.018;
+    mobileDrop.vx = mobileDrop.vx * 0.82 + sidePush;
+    mobileDrop.vy = Math.max(Math.abs(mobileDrop.vy), 2.4) + 3.8;
+  }
+
+  if (mobileDrop.inPipeIndex < 0) {
+    const mega = getMobileMegaBouncy();
+    if (mega) {
+      const dx = mobileDrop.x - mega.x;
+      const dy = mobileDrop.y - mega.y;
+      const minDist = MOBILE_BALL_R + mega.r;
+      const distSq = dx * dx + dy * dy;
+
+      if (distSq < minDist * minDist) {
+        const dist = Math.sqrt(distSq) || 0.0001;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const penetration = minDist - dist;
+
+        mobileDrop.x += nx * penetration;
+        mobileDrop.y += ny * penetration;
+
+        const vn = mobileDrop.vx * nx + mobileDrop.vy * ny;
+        if (vn < 0) {
+          const restitution = 1.16;
+          mobileDrop.vx -= (1 + restitution) * vn * nx;
+          mobileDrop.vy -= (1 + restitution) * vn * ny;
+
+          const pop = 3.2;
+          mobileDrop.vx += nx * pop;
+          mobileDrop.vy += ny * pop;
+
+          if (ny < -0.2) {
+            mobileDrop.vy -= 2.6;
+          }
+        }
+      }
+    }
   }
 
   const bumpers = getMobileBumpers();

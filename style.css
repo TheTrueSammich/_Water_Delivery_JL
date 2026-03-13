@@ -34,6 +34,10 @@ body {
   display: none;
 }
 
+#mobileMegaBouncy {
+  display: none;
+}
+
 #mobileResetBallBtn {
   display: none;
 }
@@ -171,7 +175,7 @@ body {
     width: 0%;
     height: 100%;
     border-radius: 999px;
-    background: linear-gradient(90deg, #9be169 0%, #69dc69 65%, #4ab84a 100%);
+    background: #516BFF;
     transition: width 140ms linear;
   }
 
@@ -234,6 +238,35 @@ body {
     left: 8%;
   }
 
+  #mobileMegaBouncy {
+    display: none;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 3;
+  }
+
+  .mobileMegaBouncyOrb {
+    position: absolute;
+    left: 50%;
+    top: 46%;
+    width: 104px;
+    height: 104px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 26%, #c8a9ff 0%, #8b5dff 52%, #5f36cf 100%);
+    box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.34), 0 12px 22px rgba(44, 10, 120, 0.3);
+    color: #f4eaff;
+    font: 800 16px/1 Arial, sans-serif;
+    letter-spacing: 0.4px;
+    text-transform: lowercase;
+    text-shadow: 0 2px 4px rgba(35, 13, 82, 0.72);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
   #mobileBouncePads {
     display: block;
     position: fixed;
@@ -279,15 +312,15 @@ body {
     justify-content: center;
     font-size: 0.7rem;
     font-weight: bold;
-    color: #fff;
+    color: #ffffff;
     text-align: center;
     padding: 0 4px;
     box-sizing: border-box;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 0 1px rgba(0, 0, 0, 0.35);
     pointer-events: none;
   }
-  #mobilePipe1Label { left: calc(5% - 18px);  background: #77A8BB; }
-  #mobilePipe2Label { left: calc(31% - 18px); background: #FFC907; }
-  #mobilePipe3Label { left: calc(57% - 18px); background: #BF6C46; }
-  #mobilePipe4Label { left: calc(83% - 18px); background: #69DC69; }
+  #mobilePipe1Label { left: calc(5% - 18px);  background: #77A8BB; color: #f3fbff; }
+  #mobilePipe2Label { left: calc(31% - 18px); background: #FFC907; color: #472e00; }
+  #mobilePipe3Label { left: calc(57% - 18px); background: #BF6C46; color: #fff0e8; }
+  #mobilePipe4Label { left: calc(83% - 18px); background: #69DC69; color: #0f4f1b; }
 }
