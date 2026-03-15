@@ -8,6 +8,7 @@
 </head>
 <body>
   <button id="globalResetBtn" type="button">Restart</button>
+  <div id="levelOverlay" aria-live="polite" aria-atomic="true"></div>
   <div id="mobileHud" aria-live="polite" aria-label="Game status">
     <div id="mobileHudStats">
       <div class="mobileHudItem">Water: <span id="mobileWaterCount">10</span></div>
@@ -25,9 +26,10 @@
   <div id="mobileDropBall" aria-hidden="true">
     <img src="can.jpg" alt="" />
     <span id="mobileModifierBadge" aria-hidden="true"></span>
+    <span id="mobileWaterBadge" aria-hidden="true"></span>
   </div>
+  <div id="mobileTrail" aria-hidden="true"></div>
   <div id="mobileMegaBouncy" aria-hidden="true">
-    <div class="mobileMegaBouncyOrb">bouncy</div>
     <div class="mobileMegaBouncyOrb">bouncy</div>
     <div class="mobileMegaBouncyOrb">bouncy</div>
   </div>

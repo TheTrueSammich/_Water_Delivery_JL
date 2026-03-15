@@ -57,8 +57,40 @@ body {
   display: none;
 }
 
+#mobileTrail {
+  display: none;
+}
+
 #mobileResetBallBtn {
   display: none;
+}
+
+#levelOverlay {
+  position: fixed;
+  left: 50%;
+  top: 72px;
+  transform: translate(-50%, -12px);
+  max-width: min(92vw, 860px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  background: rgba(12, 27, 46, 0.9);
+  color: #ffffff;
+  font: 800 20px/1.25 Arial, sans-serif;
+  letter-spacing: 0.2px;
+  text-align: center;
+  white-space: pre-line;
+  text-shadow: 0 2px 3px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 9px 20px rgba(0, 0, 0, 0.28);
+  z-index: 30;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+#levelOverlay.visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 @media (max-width: 800px) {
@@ -145,6 +177,12 @@ body {
     padding: 10px 15px;
     font-size: 14px;
     z-index: 25;
+  }
+
+  #levelOverlay {
+    top: 84px;
+    font-size: 17px;
+    padding: 10px 14px;
   }
 
   .mobileHudItem {
@@ -284,12 +322,43 @@ body {
     opacity: 0;
   }
 
+  #mobileWaterBadge {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: #00e5ff;
+    font: 900 15px/1 Arial, sans-serif;
+    letter-spacing: 0.15px;
+    text-align: center;
+    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.75);
+    pointer-events: none;
+    z-index: 2;
+  }
+
   #mobileMegaBouncy {
     display: none;
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 3;
+  }
+
+  #mobileTrail {
+    display: block;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  .mobileTrailDot {
+    position: absolute;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(28, 62, 176, 0.42);
+    pointer-events: none;
+    will-change: transform, width, height, opacity;
   }
 
   .mobileMegaBouncyOrb {

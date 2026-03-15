@@ -7,9 +7,18 @@ const mobileNextLevelTextEl = document.getElementById('mobileNextLevelText');
 const mobileNextLevelFillEl = document.getElementById('mobileNextLevelFill');
 const mobileDropBallEl = document.getElementById('mobileDropBall');
 const mobileModifierBadgeEl = document.getElementById('mobileModifierBadge');
+const mobileWaterBadgeEl = document.getElementById('mobileWaterBadge');
+const mobileTrailEl = document.getElementById('mobileTrail');
 const mobileMegaBouncyEl = document.getElementById('mobileMegaBouncy');
 const mobileBumpersEl = document.getElementById('mobileBumpers');
 const mobileResetBallBtnEl = document.getElementById('mobileResetBallBtn');
+const levelOverlayEl = document.getElementById('levelOverlay');
+const mobilePipeLabelEls = [
+  document.getElementById('mobilePipe1Label'),
+  document.getElementById('mobilePipe2Label'),
+  document.getElementById('mobilePipe3Label'),
+  document.getElementById('mobilePipe4Label'),
+];
 const globalResetBtnEl = document.getElementById('globalResetBtn');
 
 const MOBILE_BREAKPOINT = 800;
@@ -28,6 +37,14 @@ const MOBILE_AIM_BOTTOM_ZONE_PX = 700;
 const MOBILE_TOP_BOUNCY_SQUARE_TOP = 0;
 const MOBILE_MEGA_BOUNCY_R = 44;
 const MOBILE_MEGA_BOUNCY_COUNT = 3;
+const MOBILE_MEGA_BOUNCY_MOBILE_COUNT = 2;
+const MOBILE_MEGA_BOUNCY_RESTITUTION = 1.0;
+const MOBILE_MEGA_BOUNCY_POP = 3.0;
+const MOBILE_MEGA_BOUNCY_UPWARD_BOOST = 2.3;
+const MOBILE_TOP_SQUARE_SIDE_PUSH_SCALE = 0.014;
+const MOBILE_TOP_SQUARE_VX_DAMPING = 0.78;
+const MOBILE_TOP_SQUARE_MIN_DOWN_VY = 2.0;
+const MOBILE_TOP_SQUARE_DOWNWARD_BOOST = 2.8;
 const MOBILE_MEGA_BOUNCY_X_MIN_PCT = 12;
 const MOBILE_MEGA_BOUNCY_X_MAX_PCT = 88;
 const MOBILE_MEGA_BOUNCY_Y_MIN_PCT = 34;
@@ -51,10 +68,10 @@ let mobileBumperLayout = MOBILE_BUMPERS_BASE.map((b) => ({ ...b }));
 let mobileMegaBouncyPositions = [
   { xPct: 34, yPct: 46 },
   { xPct: 50, yPct: 46 },
-  { xPct: 66, yPct: 46 },
 ];
 let desktopBumperLayout = [];
 const MOBILE_PIPE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
+let mobilePipeOrder = [...MOBILE_PIPE_COLORS];
 
 function resize() {
   canvas.width  = window.innerWidth;
@@ -91,11 +108,13 @@ const RIGHT_BARRIER_OVERFLOW = 5000;
 const GRAVITY     = 0.35;
 const MAX_PULL    = 125;
 const POWER       = 0.2;
-const MOBILE_RESET_BTN_DELAY_MS = 3000;
+const MOBILE_RESET_BTN_DELAY_MS = 4000;
 const RESET_BALL_BTN_DELAY_MS = 6000;
 const LEVEL_2_POINTS = 10;
 const LEVEL_3_POINTS = 20;
 const LEVEL_4_POINTS = 30;
+const LEVEL_NOTICE_DURATION_MS = 3200;
+const MOBILE_LEVEL3_BUMPER_REDUCTION = 2;
 const DESKTOP_MEGA_BOUNCY_R = 44;
 
 const canImage = new Image();
@@ -178,10 +197,32 @@ function isGoldenBumperIndex(index) {
   return unlockedLevel >= 4 && !isRustedBumperIndex(index) && index % 4 === 0;
 }
 
+function getLevelInstruction(level) {
+  if (level === 2) {
+    return 'Rocky bumpers unlocked! Bank shots to guide the can into better pipes.';
+  }
+  if (level === 3) {
+    return 'Mega bouncy orbs unlocked. Use them to redirect into high-value pipes.';
+  }
+  if (level === 4) {
+    return 'Rusted bumpers give -1, and filter pellet bumpers give +3!';
+  }
+  return `Stage ${level}: Keep scoring to unlock the next stage.`;
+}
+
+function showLevelNotice(level) {
+  levelNoticeText = `Level ${level} Reached!\n${getLevelInstruction(level)}`;
+  levelNoticeUntilMs = performance.now() + LEVEL_NOTICE_DURATION_MS;
+}
+
 function setScore(nextScore) {
   const previousLevel = unlockedLevel;
   score = Math.max(0, nextScore);
-  unlockedLevel = Math.max(unlockedLevel, getLevelForPoints(score));
+  const nextLevel = getLevelForPoints(score);
+  unlockedLevel = Math.max(unlockedLevel, nextLevel);
+  if (nextLevel > previousLevel) {
+    showLevelNotice(nextLevel);
+  }
   if (previousLevel < 4 && unlockedLevel >= 4) {
     randomizeMobileMegaBouncy();
     randomizeDesktopMegaBouncy();
@@ -200,8 +241,7 @@ function updateUnlockedLevel() {
   const reachedLevel = getLevelForPoints(getSafeScore());
   if (reachedLevel > unlockedLevel) {
     unlockedLevel = reachedLevel;
-    levelNoticeText = `Level ${unlockedLevel} Reached!`;
-    levelNoticeUntilMs = performance.now() + 1800;
+    showLevelNotice(unlockedLevel);
   }
 }
 
@@ -213,6 +253,8 @@ function restartGame() {
   gameOver = false;
   levelNoticeText = '';
   levelNoticeUntilMs = 0;
+  mobilePipeOrder = [...MOBILE_PIPE_COLORS];
+  syncMobilePipeLabels();
   desktopMegaBouncyPositions = [
     { xT: 0.34, yT: 0.45 },
     { xT: 0.5, yT: 0.45 },
@@ -248,6 +290,7 @@ resetBird();
 resetMobileDropBall();
 renderMobileBumpers();
 renderMobileMegaBouncy();
+syncMobilePipeLabels();
 
 function scheduleReset(ms) {
   if (!pending) {
@@ -275,9 +318,56 @@ function getMobilePipeRects() {
       y: top,
       w: pipeW,
       h: pipeH,
-      color: MOBILE_PIPE_COLORS[i],
+      color: mobilePipeOrder[i],
     };
   });
+}
+
+function getMobilePipeLabelText(color) {
+  if (color === '#77A8BB') return 'Extra Water';
+  if (color === '#FFC907') return '+5';
+  if (color === '#BF6C46') {
+    if (unlockedLevel >= 4) return '-10';
+    if (unlockedLevel >= 3) return '-5';
+    return '-3';
+  }
+  if (color === '#69DC69') return '+3';
+  return '';
+}
+
+function getMobilePipeLabelColor(color) {
+  if (color === '#77A8BB') return '#f3fbff';
+  if (color === '#FFC907') return '#472e00';
+  if (color === '#BF6C46') return '#fff0e8';
+  if (color === '#69DC69') return '#0f4f1b';
+  return '#ffffff';
+}
+
+function syncMobilePipeLabels() {
+  mobilePipeLabelEls.forEach((labelEl, i) => {
+    if (!labelEl) return;
+    const color = mobilePipeOrder[i] || MOBILE_PIPE_COLORS[i];
+    labelEl.textContent = getMobilePipeLabelText(color);
+    labelEl.style.left = `calc(${MOBILE_PIPE_LEFT_PCTS[i]}% + ${MOBILE_PIPE_X_OFFSET_PX}px)`;
+    labelEl.style.background = color;
+    labelEl.style.color = getMobilePipeLabelColor(color);
+  });
+}
+
+function randomizeMobilePipeOrder() {
+  const next = [...mobilePipeOrder];
+  const original = mobilePipeOrder.join('|');
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    for (let i = next.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [next[i], next[j]] = [next[j], next[i]];
+    }
+    if (next.join('|') !== original) break;
+  }
+
+  mobilePipeOrder = next;
+  syncMobilePipeLabels();
 }
 
 function getMobileBumpers() {
@@ -285,13 +375,18 @@ function getMobileBumpers() {
 
   const w = window.innerWidth;
   const h = window.innerHeight;
-  return mobileBumperLayout.map((b, i) => ({
+  return getActiveMobileBumperLayout().map((b, i) => ({
     x: (b.xPct / 100) * w + MOBILE_BUMPER_X_OFFSET_PX,
     y: (b.yPct / 100) * h,
     r: MOBILE_BUMPER_R,
     rusted: isRustedBumperIndex(i),
     golden: isGoldenBumperIndex(i),
   }));
+}
+
+function getActiveMobileBumperLayout() {
+  if (unlockedLevel < 3) return mobileBumperLayout;
+  return mobileBumperLayout.slice(0, Math.max(0, mobileBumperLayout.length - MOBILE_LEVEL3_BUMPER_REDUCTION));
 }
 
 function getMobileMegaBouncies() {
@@ -334,7 +429,7 @@ function randomizeMobileMegaBouncy() {
     const next = [];
     let failed = false;
 
-    for (let i = 0; i < MOBILE_MEGA_BOUNCY_COUNT; i++) {
+    for (let i = 0; i < MOBILE_MEGA_BOUNCY_MOBILE_COUNT; i++) {
       let placed = false;
       for (let tries = 0; tries < 200; tries++) {
         const candidate = {
@@ -432,7 +527,7 @@ function renderMobileBumpers() {
   if (!mobileBumpersEl) return;
 
   const layers = [];
-  mobileBumperLayout.forEach((b, i) => {
+  getActiveMobileBumperLayout().forEach((b, i) => {
     const rusted = isRustedBumperIndex(i);
     const golden = isGoldenBumperIndex(i);
     const inner = rusted ? '#b98567' : (golden ? '#d9fbff' : '#d9d9d9');
@@ -582,6 +677,41 @@ function renderMobileDropBall() {
       mobileModifierBadgeEl.style.opacity = '0';
     }
   }
+
+  if (mobileWaterBadgeEl) {
+    mobileWaterBadgeEl.textContent = String(Math.max(0, waterCount));
+  }
+}
+
+function renderMobileTrail() {
+  if (!mobileTrailEl) return;
+
+  if (!isMobileViewport() || !mobileDrop.dropping || trail.length === 0) {
+    mobileTrailEl.innerHTML = '';
+    return;
+  }
+
+  const dots = trail.map((p, i) => {
+    const t = (i + 1) / trail.length;
+    const size = 2 + t * 12;
+    const opacity = t * 0.45;
+    return `<div class="mobileTrailDot" style="left:${p.x}px;top:${p.y}px;width:${size}px;height:${size}px;opacity:${opacity};"></div>`;
+  });
+  mobileTrailEl.innerHTML = dots.join('');
+}
+
+function syncLevelOverlay() {
+  if (!levelOverlayEl) return;
+  const isActive = !!levelNoticeText && performance.now() <= levelNoticeUntilMs;
+
+  if (!isActive) {
+    levelOverlayEl.classList.remove('visible');
+    levelOverlayEl.textContent = '';
+    return;
+  }
+
+  levelOverlayEl.textContent = levelNoticeText;
+  levelOverlayEl.classList.add('visible');
 }
 
 function resetMobileDropBall() {
@@ -599,6 +729,8 @@ function resetMobileDropBall() {
   rustedDesktopHitIndices.clear();
   rustedMobileHitIndices.clear();
   launched = false;
+  trail = [];
+  renderMobileTrail();
   renderMobileDropBall();
 }
 
@@ -655,6 +787,8 @@ function syncMobileHud() {
   if (mobileMegaBouncyEl) {
     mobileMegaBouncyEl.style.display = isMobileViewport() && level >= 3 ? 'block' : 'none';
   }
+
+  syncMobilePipeLabels();
 
   if (mobileResetBallBtnEl) {
     mobileResetBallBtnEl.style.display = shouldShowMobileResetButton() ? 'inline-flex' : 'none';
@@ -1036,7 +1170,11 @@ function randomizeDesktopBumpers() {
 function getPipeReward(color) {
   if (color === '#77A8BB') return 0;
   if (color === '#FFC907') return 5;
-  if (color === '#BF6C46') return unlockedLevel >= 3 ? -5 : -3;
+  if (color === '#BF6C46') {
+    if (unlockedLevel >= 4) return -10;
+    if (unlockedLevel >= 3) return -5;
+    return -3;
+  }
   if (color === '#69DC69') return 3;
   return 0;
 }
@@ -1130,7 +1268,13 @@ function drawPipes() {
       ctx.font = 'bold 24px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(unlockedLevel >= 3 ? '-5' : '-3', x + PIPE_W / 2, y + h / 2);
+      if (unlockedLevel >= 4) {
+        ctx.fillText('-10', x + PIPE_W / 2, y + h / 2);
+      } else if (unlockedLevel >= 3) {
+        ctx.fillText('-5', x + PIPE_W / 2, y + h / 2);
+      } else {
+        ctx.fillText('-3', x + PIPE_W / 2, y + h / 2);
+      }
       ctx.restore();
     } else if (color === '#69DC69') {
       ctx.save();
@@ -2061,6 +2205,9 @@ function updateMobileDropPhysics() {
   const w = window.innerWidth;
   const h = window.innerHeight;
 
+  trail.push({ x: mobileDrop.x, y: mobileDrop.y });
+  if (trail.length > 35) trail.shift();
+
   mobileDrop.vy += MOBILE_GRAVITY;
   mobileDrop.x += mobileDrop.vx;
   mobileDrop.y += mobileDrop.vy;
@@ -2117,9 +2264,9 @@ function updateMobileDropPhysics() {
     }
 
     const squareCenterX = topSquare.x + topSquare.w * 0.5;
-    const sidePush = (mobileDrop.x - squareCenterX) * 0.018;
-    mobileDrop.vx = mobileDrop.vx * 0.82 + sidePush;
-    mobileDrop.vy = Math.max(Math.abs(mobileDrop.vy), 2.4) + 3.8;
+    const sidePush = (mobileDrop.x - squareCenterX) * MOBILE_TOP_SQUARE_SIDE_PUSH_SCALE;
+    mobileDrop.vx = mobileDrop.vx * MOBILE_TOP_SQUARE_VX_DAMPING + sidePush;
+    mobileDrop.vy = Math.max(Math.abs(mobileDrop.vy), MOBILE_TOP_SQUARE_MIN_DOWN_VY) + MOBILE_TOP_SQUARE_DOWNWARD_BOOST;
   }
 
   if (mobileDrop.inPipeIndex < 0) {
@@ -2141,16 +2288,16 @@ function updateMobileDropPhysics() {
 
         const vn = mobileDrop.vx * nx + mobileDrop.vy * ny;
         if (vn < 0) {
-          const restitution = 1.2;
+          const restitution = MOBILE_MEGA_BOUNCY_RESTITUTION;
           mobileDrop.vx -= (1 + restitution) * vn * nx;
           mobileDrop.vy -= (1 + restitution) * vn * ny;
 
-          const pop = 3.5;
+          const pop = MOBILE_MEGA_BOUNCY_POP;
           mobileDrop.vx += nx * pop;
           mobileDrop.vy += ny * pop;
 
           if (ny < -0.2) {
-            mobileDrop.vy -= 2.9;
+            mobileDrop.vy -= MOBILE_MEGA_BOUNCY_UPWARD_BOOST;
           }
         }
       }
@@ -2238,6 +2385,7 @@ function updateMobileDropPhysics() {
 
     if (!scoredThisShot) {
       applyPipeOutcome(pipeAtTop.color);
+      randomizeMobilePipeOrder();
       scoredThisShot = true;
     }
   }
@@ -2311,6 +2459,8 @@ function loop() {
   updateMobileDropPhysics();
   syncMobileHud();
   renderMobileDropBall();
+  renderMobileTrail();
+  syncLevelOverlay();
 
   if (isMobileViewport()) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -2325,7 +2475,6 @@ function loop() {
   drawSky();
   drawClouds();
   drawHud();
-  drawLevelNotice();
   drawGround();
   drawPlatform();
   drawSideWall();
@@ -2464,6 +2613,8 @@ function onMobilePointerDown(e) {
   scoredThisShot = false;
   showHint = false;
   launched = false;
+  trail = [];
+  renderMobileTrail();
   renderMobileDropBall();
 }
 
