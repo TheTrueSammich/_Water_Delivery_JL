@@ -53,6 +53,10 @@ body {
   display: none;
 }
 
+#mobileDragHint {
+  display: none;
+}
+
 #mobileMegaBouncy {
   display: none;
 }
@@ -91,6 +95,156 @@ body {
 #levelOverlay.visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* ── Start Menu ── */
+#startMenu {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(170deg, #e0f4ff 0%, #c2e8f7 55%, #a8daf0 100%);
+  transition: opacity 320ms ease;
+}
+
+#startMenu.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#startMenuInner {
+  max-width: 460px;
+  width: 90vw;
+  padding: 38px 34px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 40px rgba(30, 110, 180, 0.18);
+  color: #1a3a52;
+  font-family: Arial, sans-serif;
+  text-align: center;
+}
+
+#startMenuDrop {
+  font-size: 46px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+#startMenuTitle {
+  font: 900 38px/1.1 Arial, sans-serif;
+  color: #0d6fa8;
+  margin-bottom: 4px;
+  letter-spacing: -0.5px;
+}
+
+#startMenuTagline {
+  font: 600 13px/1.4 Arial, sans-serif;
+  color: #4d8aaa;
+  margin-bottom: 16px;
+  letter-spacing: 0.1px;
+  text-transform: uppercase;
+}
+
+.startMenuHowTo {
+  font: 500 14px/1.55 Arial, sans-serif;
+  color: #2e5f7a;
+  margin-bottom: 18px;
+  background: rgba(200, 236, 255, 0.55);
+  border-radius: 10px;
+  padding: 9px 12px;
+}
+
+.startMenuMobileOnly {
+  display: none;
+}
+
+#startMenuPipeGuide {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+  background: rgba(240, 250, 255, 0.7);
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(160, 210, 240, 0.5);
+}
+
+.startMenuPipeRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font: 600 13px/1.2 Arial, sans-serif;
+  color: #1a3a52;
+}
+
+.startMenuSwatch {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#startMenuWaterNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 11px 13px;
+  border-radius: 11px;
+  background: rgba(255, 247, 204, 0.75);
+  border: 1px solid rgba(200, 165, 0, 0.28);
+  font: 500 13px/1.5 Arial, sans-serif;
+  color: #3a2c00;
+  text-align: left;
+}
+
+#startMenuWaterNote strong {
+  color: #0d6fa8;
+}
+
+#startMenuWaterIcon {
+  font-size: 18px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+
+#startMenuGoal {
+  font: 600 13px/1.4 Arial, sans-serif;
+  color: #2e6a8a;
+  margin-bottom: 6px;
+}
+
+#startMenuGoal strong {
+  color: #0d6fa8;
+}
+
+#startMenuPlayBtn {
+  margin-top: 20px;
+  padding: 14px 46px;
+  border-radius: 14px;
+  border: none;
+  background: #FFC907;
+  color: #3a2800;
+  font: 800 18px/1 Arial, sans-serif;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(200, 155, 0, 0.35);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+#startMenuPlayBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(200, 155, 0, 0.5);
+}
+
+#startMenuPlayBtn:active {
+  transform: translateY(1px);
 }
 
 @media (max-width: 800px) {
@@ -183,6 +337,36 @@ body {
     top: 84px;
     font-size: 17px;
     padding: 10px 14px;
+  }
+
+  .startMenuMobileOnly {
+    display: block;
+  }
+
+  .startMenuDesktopOnly {
+    display: none;
+  }
+
+  .startMenuMobileOnly {
+    display: block;
+  }
+
+  #startMenuTitle {
+    font-size: 28px;
+    margin-bottom: 4px;
+  }
+
+  #startMenuInner {
+    padding: 24px 18px;
+  }
+
+  #startMenuDrop {
+    font-size: 36px;
+  }
+
+  #startMenuPlayBtn {
+    padding: 13px 40px;
+    font-size: 17px;
   }
 
   .mobileHudItem {
@@ -292,6 +476,26 @@ body {
     pointer-events: none;
     z-index: 5;
     transform: translate(-120px, -120px);
+  }
+
+  #mobileDragHint {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    transform: translate(-220px, -220px);
+    pointer-events: none;
+    z-index: 6;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: rgba(11, 48, 79, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    color: #ffffff;
+    font: 700 12px/1 Arial, sans-serif;
+    letter-spacing: 0.1px;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    opacity: 0;
   }
 
   #mobileDropBall img {

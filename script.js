@@ -6,6 +6,7 @@ const mobileLevelEl = document.getElementById('mobileLevelCount');
 const mobileNextLevelTextEl = document.getElementById('mobileNextLevelText');
 const mobileNextLevelFillEl = document.getElementById('mobileNextLevelFill');
 const mobileDropBallEl = document.getElementById('mobileDropBall');
+const mobileDragHintEl = document.getElementById('mobileDragHint');
 const mobileModifierBadgeEl = document.getElementById('mobileModifierBadge');
 const mobileWaterBadgeEl = document.getElementById('mobileWaterBadge');
 const mobileTrailEl = document.getElementById('mobileTrail');
@@ -20,6 +21,8 @@ const mobilePipeLabelEls = [
   document.getElementById('mobilePipe4Label'),
 ];
 const globalResetBtnEl = document.getElementById('globalResetBtn');
+const startMenuEl = document.getElementById('startMenu');
+const startMenuPlayBtnEl = document.getElementById('startMenuPlayBtn');
 
 const MOBILE_BREAKPOINT = 800;
 const MOBILE_BALL_R = 24;
@@ -72,6 +75,8 @@ let mobileMegaBouncyPositions = [
 let desktopBumperLayout = [];
 const MOBILE_PIPE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
 let mobilePipeOrder = [...MOBILE_PIPE_COLORS];
+const DESKTOP_PIPE_BASE_COLORS = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
+let desktopPipeOrder = [...DESKTOP_PIPE_BASE_COLORS];
 
 function resize() {
   canvas.width  = window.innerWidth;
@@ -110,10 +115,10 @@ const MAX_PULL    = 125;
 const POWER       = 0.2;
 const MOBILE_RESET_BTN_DELAY_MS = 4000;
 const RESET_BALL_BTN_DELAY_MS = 6000;
-const LEVEL_2_POINTS = 10;
-const LEVEL_3_POINTS = 20;
-const LEVEL_4_POINTS = 30;
-const LEVEL_NOTICE_DURATION_MS = 3200;
+const LEVEL_2_POINTS = 12;
+const LEVEL_3_POINTS = 24;
+const LEVEL_4_POINTS = 36;
+const LEVEL_NOTICE_DURATION_MS = 8000;
 const MOBILE_LEVEL3_BUMPER_REDUCTION = 2;
 const DESKTOP_MEGA_BOUNCY_R = 44;
 
@@ -146,10 +151,15 @@ let score = 0;
 let scoredThisShot = false;
 let lockedPipeIndex = -1;
 let waterCount = 10;
-let nextWaterBonusAt = 10;
+let nextWaterBonusAt = 8;
 let unlockedLevel = 1;
 let gameOver = false;
+let gameStarted = false;
 let restartBtn = { x: 0, y: 0, w: 0, h: 0 };
+let finishBtn = { x: 0, y: 0, w: 0, h: 0 };
+let finishSummaryBtn = { x: 0, y: 0, w: 0, h: 0 };
+let finishSummaryActive = false;
+let finishSummaryPeopleHelped = 0;
 let resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
 let shotStartedAtMs = 0;
 let wallGrowthStartedAtMs = 0;
@@ -163,6 +173,7 @@ let desktopMegaBouncyPositions = [
   { xT: 0.5, yT: 0.45 },
   { xT: 0.66, yT: 0.45 },
 ];
+let mobileHasDroppedOnce = false;
 let mobileDrop = {
   x: -120,
   y: -120,
@@ -173,6 +184,187 @@ let mobileDrop = {
   inPipeIndex: -1,
 };
 let mobileActivePointerId = null;
+let audioCtx = null;
+let audioEnabled = false;
+let lastBumperSfxAt = 0;
+const confettiPieces = [];
+
+function initAudio() {
+  if (audioEnabled) return;
+
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+
+  audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  audioEnabled = true;
+}
+
+function playTone(freq, duration, type, volume, slideTo = null) {
+  if (!audioEnabled || !audioCtx) return;
+
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, now);
+  if (slideTo !== null) {
+    osc.frequency.exponentialRampToValueAtTime(Math.max(40, slideTo), now + duration);
+  }
+
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(volume, now + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(now);
+  osc.stop(now + duration + 0.01);
+}
+
+function playSfx(name) {
+  if (!audioEnabled) return;
+
+  if (name === 'launch') {
+    playTone(220, 0.1, 'triangle', 0.04, 420);
+    return;
+  }
+  if (name === 'score') {
+    playTone(520, 0.09, 'square', 0.03, 760);
+    playTone(760, 0.08, 'triangle', 0.025, 920);
+    return;
+  }
+  if (name === 'penalty') {
+    playTone(300, 0.12, 'sawtooth', 0.03, 180);
+    return;
+  }
+  if (name === 'levelUp') {
+    playTone(460, 0.09, 'triangle', 0.03, 620);
+    playTone(620, 0.11, 'triangle', 0.03, 980);
+    return;
+  }
+  if (name === 'bump') {
+    playTone(240, 0.05, 'sine', 0.02, 210);
+    return;
+  }
+  if (name === 'gameOver') {
+    playTone(280, 0.16, 'sawtooth', 0.032, 140);
+    return;
+  }
+  if (name === 'mission') {
+    playTone(520, 0.1, 'triangle', 0.03, 700);
+    playTone(700, 0.1, 'triangle', 0.03, 980);
+    playTone(980, 0.12, 'triangle', 0.032, 1260);
+  }
+}
+
+function playPipeSfx(color, adjustedReward) {
+  if (!audioEnabled) return;
+
+  if (color === '#77A8BB') {
+    // Blue pipe: watery shimmer for extra water.
+    playTone(430, 0.09, 'sine', 0.026, 540);
+    playTone(540, 0.12, 'triangle', 0.024, 700);
+    return;
+  }
+
+  if (color === '#FFC907') {
+    // Yellow pipe: bright, high-value ring.
+    playTone(560, 0.08, 'square', 0.03, 780);
+    playTone(780, 0.1, 'triangle', 0.026, 980);
+    return;
+  }
+
+  if (color === '#69DC69') {
+    // Green pipe: quick positive pop.
+    playTone(500, 0.07, 'triangle', 0.024, 620);
+    playTone(620, 0.08, 'sine', 0.02, 760);
+    return;
+  }
+
+  if (color === '#BF6C46') {
+    // Brown pipe: dull negative thunk.
+    playTone(280, 0.13, 'sawtooth', 0.03, 170);
+    return;
+  }
+
+  if (adjustedReward > 0) {
+    playSfx('score');
+  } else if (adjustedReward < 0) {
+    playSfx('penalty');
+  }
+}
+
+function maybePlayBumpSfx() {
+  const now = performance.now();
+  if (now - lastBumperSfxAt < 90) return;
+  lastBumperSfxAt = now;
+  playSfx('bump');
+}
+
+function spawnConfettiBurst(x, y, count) {
+  const colors = ['#77A8BB', '#69DC69', '#FFC907', '#BF6C46', '#ffffff'];
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2 + Math.random() * 6;
+    confettiPieces.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 3,
+      size: 4 + Math.random() * 5,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      life: 70 + Math.random() * 40,
+      rot: Math.random() * Math.PI,
+      spin: (Math.random() - 0.5) * 0.35,
+    });
+  }
+}
+
+function startMissionConfetti() {
+  const cx = canvas.width * 0.5;
+  const cy = canvas.height * 0.42;
+  for (let burst = 0; burst < 5; burst++) {
+    const ox = (Math.random() - 0.5) * 220;
+    const oy = (Math.random() - 0.5) * 80;
+    spawnConfettiBurst(cx + ox, cy + oy, 34);
+  }
+}
+
+function updateConfetti() {
+  for (let i = confettiPieces.length - 1; i >= 0; i--) {
+    const p = confettiPieces[i];
+    p.vy += 0.12;
+    p.vx *= 0.994;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.rot += p.spin;
+    p.life -= 1;
+
+    if (p.life <= 0 || p.y > canvas.height + 30) {
+      confettiPieces.splice(i, 1);
+    }
+  }
+}
+
+function drawConfetti() {
+  if (!confettiPieces.length) return;
+
+  ctx.save();
+  confettiPieces.forEach((p) => {
+    const alpha = Math.max(0, Math.min(1, p.life / 80));
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rot);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.65);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  });
+  ctx.restore();
+}
 
 function getLevelForPoints(points) {
   if (points >= LEVEL_4_POINTS) return 4;
@@ -202,10 +394,10 @@ function getLevelInstruction(level) {
     return 'Rocky bumpers unlocked! Bank shots to guide the can into better pipes.';
   }
   if (level === 3) {
-    return 'Mega bouncy orbs unlocked. Use them to redirect into high-value pipes.';
+    return 'Mega bouncy orbs unlocked. Use them to redirect the ball into high-value pipes.';
   }
   if (level === 4) {
-    return 'Rusted bumpers give -1, and filter pellet bumpers give +3!';
+    return 'Congratulations! You finished the game. Keep playing with the added modifiers to earn a high score.';
   }
   return `Stage ${level}: Keep scoring to unlock the next stage.`;
 }
@@ -213,6 +405,7 @@ function getLevelInstruction(level) {
 function showLevelNotice(level) {
   levelNoticeText = `Level ${level} Reached!\n${getLevelInstruction(level)}`;
   levelNoticeUntilMs = performance.now() + LEVEL_NOTICE_DURATION_MS;
+  playSfx('levelUp');
 }
 
 function setScore(nextScore) {
@@ -245,16 +438,40 @@ function updateUnlockedLevel() {
   }
 }
 
+function startGame() {
+  initAudio();
+  gameStarted = true;
+  if (startMenuEl) startMenuEl.classList.add('hidden');
+}
+
+function finishToStartMenu() {
+  restartGame();
+  gameStarted = false;
+  if (startMenuEl) startMenuEl.classList.remove('hidden');
+}
+
+function showFinishSummary() {
+  playSfx('mission');
+  startMissionConfetti();
+  finishSummaryPeopleHelped = getSafeScore();
+  finishSummaryActive = true;
+  finishBtn = { x: 0, y: 0, w: 0, h: 0 };
+}
+
 function restartGame() {
   score = 0;
   waterCount = 10;
-  nextWaterBonusAt = 10;
+  nextWaterBonusAt = 8;
   unlockedLevel = 1;
   gameOver = false;
+  mobileHasDroppedOnce = false;
+  finishSummaryActive = false;
+  finishSummaryPeopleHelped = 0;
   levelNoticeText = '';
   levelNoticeUntilMs = 0;
   mobilePipeOrder = [...MOBILE_PIPE_COLORS];
   syncMobilePipeLabels();
+  desktopPipeOrder = [...DESKTOP_PIPE_BASE_COLORS];
   desktopMegaBouncyPositions = [
     { xT: 0.34, yT: 0.45 },
     { xT: 0.5, yT: 0.45 },
@@ -262,6 +479,8 @@ function restartGame() {
   ];
   desktopBumperLayout = [];
   showHint = true;
+  finishBtn = { x: 0, y: 0, w: 0, h: 0 };
+  finishSummaryBtn = { x: 0, y: 0, w: 0, h: 0 };
   resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   resetBird();
   resetMobileDropBall();
@@ -327,9 +546,9 @@ function getMobilePipeLabelText(color) {
   if (color === '#77A8BB') return 'Extra Water';
   if (color === '#FFC907') return '+5';
   if (color === '#BF6C46') {
-    if (unlockedLevel >= 4) return '-10';
-    if (unlockedLevel >= 3) return '-5';
-    return '-3';
+    if (unlockedLevel >= 4) return '-8';
+    if (unlockedLevel >= 3) return '-4';
+    return '-2';
   }
   if (color === '#69DC69') return '+3';
   return '';
@@ -368,6 +587,21 @@ function randomizeMobilePipeOrder() {
 
   mobilePipeOrder = next;
   syncMobilePipeLabels();
+}
+
+function randomizeDesktopPipeOrder() {
+  const next = [...desktopPipeOrder];
+  const original = desktopPipeOrder.join('|');
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    for (let i = next.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [next[i], next[j]] = [next[j], next[i]];
+    }
+    if (next.join('|') !== original) break;
+  }
+
+  desktopPipeOrder = next;
 }
 
 function getMobileBumpers() {
@@ -640,6 +874,15 @@ function getMobileBouncePads() {
 function renderMobileDropBall() {
   if (!mobileDropBallEl) return;
   mobileDropBallEl.style.transform = `translate(${mobileDrop.x - MOBILE_BALL_R}px, ${mobileDrop.y - MOBILE_BALL_R}px)`;
+
+  if (mobileDragHintEl) {
+    const hintX = mobileDrop.x + MOBILE_BALL_R + 10;
+    const hintY = mobileDrop.y - 10;
+    const shouldShowHint = isMobileViewport() && gameStarted && !gameOver && !mobileDrop.dropping && !mobileHasDroppedOnce;
+    mobileDragHintEl.style.transform = `translate(${hintX}px, ${hintY}px)`;
+    mobileDragHintEl.style.opacity = shouldShowHint ? '1' : '0';
+  }
+
   if (activeBumperModifier < 0) {
     mobileDropBallEl.style.background = '#d8b08f';
     mobileDropBallEl.style.boxShadow = '0 0 0 2px rgba(123, 79, 54, 0.6), 0 10px 20px rgba(74, 45, 29, 0.28)';
@@ -771,9 +1014,13 @@ function syncMobileHud() {
   mobileLevelEl.textContent = String(level);
 
   if (mobileNextLevelTextEl) {
-    mobileNextLevelTextEl.textContent = remaining === 0
-      ? 'Max level reached'
-      : `${remaining} points to next level`;
+    if (gameOver && waterCount <= 0) {
+      mobileNextLevelTextEl.textContent = `Game over: You helped ${safeScore} people. In support of charity: water, each person helped represents progress toward clean, safe drinking water for communities in need. This mission is the foundation this game was built on.`;
+    } else {
+      mobileNextLevelTextEl.textContent = remaining === 0
+        ? 'Max level reached'
+        : `${remaining} people to next level`;
+    }
   }
 
   if (mobileNextLevelFillEl) {
@@ -906,8 +1153,7 @@ function getPipeLayout() {
   const wallX = PLAT_X + PLAT_W + SIDE_WALL_GAP;
   const wallRight = wallX + SIDE_WALL_W;
   const rightEdge = canvas.width - WALL_W;
-  const baseColors = ['#77A8BB', '#FFC907', '#BF6C46', '#69DC69'];
-  const colors = [...baseColors, ...baseColors];
+  const colors = [...desktopPipeOrder, ...desktopPipeOrder];
   const totalPipeW = colors.length * PIPE_W;
   const evenGap = (rightEdge - wallRight - totalPipeW) / (colors.length + 1);
   const startX = wallRight + evenGap;
@@ -1171,9 +1417,9 @@ function getPipeReward(color) {
   if (color === '#77A8BB') return 0;
   if (color === '#FFC907') return 5;
   if (color === '#BF6C46') {
-    if (unlockedLevel >= 4) return -10;
-    if (unlockedLevel >= 3) return -5;
-    return -3;
+    if (unlockedLevel >= 4) return -8;
+    if (unlockedLevel >= 3) return -4;
+    return -2;
   }
   if (color === '#69DC69') return 3;
   return 0;
@@ -1182,6 +1428,8 @@ function getPipeReward(color) {
 function applyPipeOutcome(color) {
   const reward = getPipeReward(color);
   const adjustedReward = reward + activeBumperModifier;
+  playPipeSfx(color, adjustedReward);
+
   setScore(score + adjustedReward);
   if (color === '#77A8BB') {
     waterCount += 5;
@@ -1197,7 +1445,7 @@ function applyPipeOutcome(color) {
   }
   while (score >= nextWaterBonusAt) {
     waterCount += 1;
-    nextWaterBonusAt += 10;
+    nextWaterBonusAt += 8;
   }
 
   activeBumperModifier = 0;
@@ -1269,11 +1517,11 @@ function drawPipes() {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       if (unlockedLevel >= 4) {
-        ctx.fillText('-10', x + PIPE_W / 2, y + h / 2);
+        ctx.fillText('-8', x + PIPE_W / 2, y + h / 2);
       } else if (unlockedLevel >= 3) {
-        ctx.fillText('-5', x + PIPE_W / 2, y + h / 2);
+        ctx.fillText('-4', x + PIPE_W / 2, y + h / 2);
       } else {
-        ctx.fillText('-3', x + PIPE_W / 2, y + h / 2);
+        ctx.fillText('-2', x + PIPE_W / 2, y + h / 2);
       }
       ctx.restore();
     } else if (color === '#69DC69') {
@@ -1451,7 +1699,7 @@ function drawHud() {
   ctx.textBaseline = 'top';
 
   ctx.font = 'bold 30px Arial, sans-serif';
-  ctx.fillText(`Points: ${safeScore}`, 28, 24);
+  ctx.fillText(`People helped: ${safeScore}`, 28, 24);
 
   ctx.font = 'bold 22px Arial, sans-serif';
   ctx.fillText(`Level ${level} / 4`, 28, 64);
@@ -1459,7 +1707,7 @@ function drawHud() {
   ctx.font = 'bold 17px Arial, sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.92)';
   if (level < 4) {
-    ctx.fillText(`${next} pts to Level ${level + 1}`, 28, 96);
+    ctx.fillText(`${next} people to Level ${level + 1}`, 28, 96);
   } else {
     ctx.fillText('Max level reached!', 28, 96);
   }
@@ -1733,6 +1981,38 @@ function drawGameOver() {
   ctx.fillStyle = 'rgba(0,0,0,0.5)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+  if (finishSummaryActive) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 48px Arial, sans-serif';
+    ctx.fillText('Mission Complete', canvas.width / 2, canvas.height / 2 - 24);
+    ctx.font = 'bold 24px Arial, sans-serif';
+    ctx.fillText(`People helped: ${finishSummaryPeopleHelped}`, canvas.width / 2, canvas.height / 2 + 22);
+    ctx.font = 'bold 18px Arial, sans-serif';
+    ctx.fillText('Thank you for playing and supporting clean water awareness.', canvas.width / 2, canvas.height / 2 + 58);
+
+    const btnW = 260;
+    const btnH = 56;
+    const btnX = canvas.width / 2 - btnW / 2;
+    const btnY = canvas.height / 2 + 96;
+    finishSummaryBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
+
+    ctx.fillStyle = '#1f5d1f';
+    drawRoundedRect(btnX, btnY, btnW, btnH, 12);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.24)';
+    drawRoundedRect(btnX + 4, btnY + 4, btnW - 8, 12, 8);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 26px Arial, sans-serif';
+    ctx.fillText('Back to Start', canvas.width / 2, btnY + btnH / 2 + 1);
+    ctx.restore();
+    return;
+  }
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
@@ -1740,11 +2020,17 @@ function drawGameOver() {
   ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2 - 20);
   ctx.font = 'bold 24px Arial, sans-serif';
   ctx.fillText('Out of water', canvas.width / 2, canvas.height / 2 + 28);
+  ctx.font = 'bold 22px Arial, sans-serif';
+  ctx.fillText(`People helped: ${getSafeScore()}`, canvas.width / 2, canvas.height / 2 + 62);
+  ctx.font = 'bold 16px Arial, sans-serif';
+  ctx.fillText('In support of charity: water, clean water improves health and dignity.', canvas.width / 2, canvas.height / 2 + 90);
+  ctx.fillText('It also helps children stay in school and communities build stable futures.', canvas.width / 2, canvas.height / 2 + 114);
+  ctx.fillText('This mission is the foundation this game was built on.', canvas.width / 2, canvas.height / 2 + 138);
 
   const btnW = 220;
   const btnH = 56;
   const btnX = canvas.width / 2 - btnW / 2;
-  const btnY = canvas.height / 2 + 70;
+  const btnY = canvas.height / 2 + 176;
   restartBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
 
   ctx.fillStyle = '#2f7fc3';
@@ -1758,6 +2044,21 @@ function drawGameOver() {
   ctx.fillStyle = '#ffffff';
   ctx.font = 'bold 28px Arial, sans-serif';
   ctx.fillText('Restart', canvas.width / 2, btnY + btnH / 2 + 1);
+
+  const finishBtnY = btnY + btnH + 12;
+  finishBtn = { x: btnX, y: finishBtnY, w: btnW, h: btnH };
+
+  ctx.fillStyle = '#1f5d1f';
+  drawRoundedRect(btnX, finishBtnY, btnW, btnH, 12);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.24)';
+  drawRoundedRect(btnX + 4, finishBtnY + 4, btnW - 8, 12, 8);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px Arial, sans-serif';
+  ctx.fillText('Finish', canvas.width / 2, finishBtnY + btnH / 2 + 1);
   ctx.restore();
 }
 
@@ -2021,6 +2322,7 @@ function handleBumperCollisions() {
       const pop = 0.55;
       bvx += nx * pop;
       bvy += ny * pop;
+      maybePlayBumpSfx();
     }
 
     if (rusted) {
@@ -2183,6 +2485,7 @@ function handlePipeScoring() {
 
     const color = layout.colors[i];
     applyPipeOutcome(color);
+    randomizeDesktopPipeOrder();
     scoredThisShot = true;
     lockedPipeIndex = i;
     scheduleReset(650);
@@ -2195,6 +2498,7 @@ function updateGameOverState() {
   if (!launched && !mobileDrop.dropping && waterCount <= 0) {
     gameOver = true;
     showHint = false;
+    playSfx('gameOver');
   }
 }
 
@@ -2326,6 +2630,7 @@ function updateMobileDropPhysics() {
       mobileDrop.vy -= (1 + 0.78) * vn * ny;
       mobileDrop.vx += nx * 0.4;
       mobileDrop.vy += ny * 0.4;
+      maybePlayBumpSfx();
     }
 
     if (b.rusted) {
@@ -2457,6 +2762,7 @@ function update() {
 function loop() {
   update();
   updateMobileDropPhysics();
+  updateConfetti();
   syncMobileHud();
   renderMobileDropBall();
   renderMobileTrail();
@@ -2470,6 +2776,11 @@ function loop() {
 
   if (mobileDropBallEl) {
     mobileDropBallEl.style.transform = 'translate(-120px, -120px)';
+  }
+
+  if (mobileDragHintEl) {
+    mobileDragHintEl.style.transform = 'translate(-220px, -220px)';
+    mobileDragHintEl.style.opacity = '0';
   }
 
   drawSky();
@@ -2489,6 +2800,7 @@ function loop() {
   drawPipes();
   drawLevelProgressBar();
   drawBandSegment('right');  // in front of bird
+  drawConfetti();
   drawResetBallButton();
   drawHint();
   drawGameOver();
@@ -2510,18 +2822,41 @@ function getXY(e) {
 }
 
 function onDown(e) {
+  if (!gameStarted) return;
   if (isMobileViewport()) return;
+  initAudio();
   const p = getXY(e);
 
   if (gameOver) {
+    if (finishSummaryActive) {
+      const insideFinishSummary = (
+        p.x >= finishSummaryBtn.x &&
+        p.x <= finishSummaryBtn.x + finishSummaryBtn.w &&
+        p.y >= finishSummaryBtn.y &&
+        p.y <= finishSummaryBtn.y + finishSummaryBtn.h
+      );
+      if (insideFinishSummary) {
+        finishToStartMenu();
+      }
+      return;
+    }
+
     const insideRestart = (
       p.x >= restartBtn.x &&
       p.x <= restartBtn.x + restartBtn.w &&
       p.y >= restartBtn.y &&
       p.y <= restartBtn.y + restartBtn.h
     );
+    const insideFinish = (
+      p.x >= finishBtn.x &&
+      p.x <= finishBtn.x + finishBtn.w &&
+      p.y >= finishBtn.y &&
+      p.y <= finishBtn.y + finishBtn.h
+    );
     if (insideRestart) {
       restartGame();
+    } else if (insideFinish) {
+      showFinishSummary();
     }
     return;
   }
@@ -2583,6 +2918,7 @@ function onUp() {
   wallGrowthStartedAtMs = shotStartedAtMs;
   launched = true;
   trail    = [];
+  playSfx('launch');
 }
 
 function getPointerXY(e) {
@@ -2590,7 +2926,9 @@ function getPointerXY(e) {
 }
 
 function onMobilePointerDown(e) {
+  if (!gameStarted) return;
   if (!isMobileViewport()) return;
+  initAudio();
   if (gameOver || waterCount <= 0) return;
   if (mobileDrop.pressing || mobileDrop.dropping) return;
   if (e.cancelable) e.preventDefault();
@@ -2619,6 +2957,7 @@ function onMobilePointerDown(e) {
 }
 
 function onMobilePointerMove(e) {
+  if (!gameStarted) return;
   if (!isMobileViewport()) return;
   if (gameOver || mobileDrop.dropping) return;
 
@@ -2653,6 +2992,7 @@ function onMobilePointerMove(e) {
 }
 
 function onMobilePointerUp(e) {
+  if (!gameStarted) return;
   if (!isMobileViewport()) return;
   if (!mobileDrop.pressing || gameOver || waterCount <= 0) return;
   if (mobileActivePointerId !== null && e.pointerId !== mobileActivePointerId) return;
@@ -2663,10 +3003,12 @@ function onMobilePointerUp(e) {
   mobileActivePointerId = null;
   mobileDrop.vx = 0;
   mobileDrop.vy = 0;
+  mobileHasDroppedOnce = true;
   waterCount = Math.max(0, waterCount - 1);
   shotStartedAtMs = performance.now();
   wallGrowthStartedAtMs = shotStartedAtMs;
   launched = true;
+  playSfx('launch');
 }
 
 function onMobilePointerCancel(e) {
@@ -2711,5 +3053,11 @@ if (mobileResetBallBtnEl) {
 if (globalResetBtnEl) {
   globalResetBtnEl.addEventListener('click', () => {
     restartGame();
+  });
+}
+
+if (startMenuPlayBtnEl) {
+  startMenuPlayBtnEl.addEventListener('click', () => {
+    startGame();
   });
 }

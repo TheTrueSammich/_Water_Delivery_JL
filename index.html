@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Slingshot</title>
+  <title>Water Delivery</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,11 +12,11 @@
   <div id="mobileHud" aria-live="polite" aria-label="Game status">
     <div id="mobileHudStats">
       <div class="mobileHudItem">Water: <span id="mobileWaterCount">10</span></div>
-      <div class="mobileHudItem">Points: <span id="mobilePointCount">0</span></div>
+      <div class="mobileHudItem">People Helped: <span id="mobilePointCount">0</span></div>
       <div class="mobileHudItem">Level: <span id="mobileLevelCount">1</span></div>
     </div>
     <div id="mobileNextLevelWrap" aria-label="Next level progress">
-      <div id="mobileNextLevelText">10 points to next level</div>
+      <div id="mobileNextLevelText">12 people to next level</div>
       <div id="mobileNextLevelTrack">
         <div id="mobileNextLevelFill"></div>
       </div>
@@ -28,6 +28,7 @@
     <span id="mobileModifierBadge" aria-hidden="true"></span>
     <span id="mobileWaterBadge" aria-hidden="true"></span>
   </div>
+  <div id="mobileDragHint" aria-hidden="true">Drag and drop</div>
   <div id="mobileTrail" aria-hidden="true"></div>
   <div id="mobileMegaBouncy" aria-hidden="true">
     <div class="mobileMegaBouncyOrb">bouncy</div>
@@ -39,7 +40,28 @@
     <div class="mobileBouncePad"></div>
     <div class="mobileBouncePad"></div>
   </div>
-  <div id="mobilePipes" aria-hidden="true"><div id="mobilePipe1Label">Extra Water</div><div id="mobilePipe2Label">+5</div><div id="mobilePipe3Label">-3</div><div id="mobilePipe4Label">+3</div></div>
+  <div id="mobilePipes" aria-hidden="true"><div id="mobilePipe1Label">Extra Water</div><div id="mobilePipe2Label">+5</div><div id="mobilePipe3Label">-2</div><div id="mobilePipe4Label">+3</div></div>
+  <div id="startMenu">
+    <div id="startMenuInner">
+      <div id="startMenuDrop">💧</div>
+      <h1 id="startMenuTitle">Water Delivery</h1>
+      <p id="startMenuTagline">Help deliver clean water to those who need it most.</p>
+      <p class="startMenuHowTo startMenuDesktopOnly">Pull back the slingshot and launch the can into the pipes to help more people and earn more water.</p>
+      <p class="startMenuHowTo startMenuMobileOnly">Position the can above the pipes and release to drop it through and earn water while helping people.</p>
+      <div id="startMenuPipeGuide">
+        <div class="startMenuPipeRow"><span class="startMenuSwatch" style="background:#77A8BB"></span><span>Blue &mdash; Extra Water (+5)</span></div>
+        <div class="startMenuPipeRow"><span class="startMenuSwatch" style="background:#69DC69"></span><span>Green &mdash; +3 people helped</span></div>
+        <div class="startMenuPipeRow"><span class="startMenuSwatch" style="background:#FFC907"></span><span>Yellow &mdash; +5 people helped</span></div>
+        <div class="startMenuPipeRow"><span class="startMenuSwatch" style="background:#BF6C46"></span><span>Brown &mdash; &minus;2 people helped</span></div>
+      </div>
+      <div id="startMenuWaterNote">
+        <span id="startMenuWaterIcon">💧</span>
+        <span>Your <strong>water</strong> is precious &mdash; in the spirit of charity: water, every drop contributes to better health, school attendance, and more time for families to build their future.</span>
+      </div>
+      <p id="startMenuGoal">Reach <strong>12 people helped</strong> to unlock Stage 2!</p>
+      <button id="startMenuPlayBtn" type="button">Start Delivering</button>
+    </div>
+  </div>
   <canvas id="gameCanvas"></canvas>
   <script src="script.js"></script>
 </body>
