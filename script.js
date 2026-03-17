@@ -460,7 +460,7 @@ function showFinishSummary() {
   startMissionConfetti();
   finishSummaryPeopleHelped = getSafeScore();
   finishSummaryActive = true;
- 
+}
 
 function triggerEndGame() {
   gameOver = true;
@@ -2071,16 +2071,19 @@ function drawGameOver() {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 48px Arial, sans-serif';
-    ctx.fillText('Mission Complete', canvas.width / 2, canvas.height / 2 - 24);
+    ctx.fillText('Mission Complete', canvas.width / 2, canvas.height / 2 - 64);
     ctx.font = 'bold 24px Arial, sans-serif';
-    ctx.fillText(`People helped: ${finishSummaryPeopleHelped}`, canvas.width / 2, canvas.height / 2 + 22);
+    ctx.fillText(`People helped: ${finishSummaryPeopleHelped}`, canvas.width / 2, canvas.height / 2 - 18);
+    ctx.font = 'bold 16px Arial, sans-serif';
+    ctx.fillText('In support of charity: water, clean water improves health and dignity.', canvas.width / 2, canvas.height / 2 + 170);
+    ctx.fillText('It also helps children stay in school and communities build stable futures.', canvas.width / 2, canvas.height / 2 + 194);
     ctx.font = 'bold 18px Arial, sans-serif';
-    ctx.fillText('Thank you for playing and supporting clean water awareness.', canvas.width / 2, canvas.height / 2 + 58);
+    ctx.fillText('Thank you for playing and supporting clean water awareness.', canvas.width / 2, canvas.height / 2 + 18);
 
     const btnW = 260;
     const btnH = 56;
     const btnX = canvas.width / 2 - btnW / 2;
-    const btnY = canvas.height / 2 + 96;
+    const btnY = canvas.height / 2 + 250;
     finishSummaryBtn = { x: btnX, y: btnY, w: btnW, h: btnH };
 
     ctx.fillStyle = '#1f5d1f';
