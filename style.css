@@ -1,3 +1,9 @@
+@media (max-width: 400px), (max-height: 400px) {
+  #charityWaterLogo {
+    width: 110px;
+    bottom: 2px;
+  }
+}
 @media (max-width: 340px) {
   #startMenuInner {
     padding: 6px 1vw;
@@ -541,10 +547,10 @@ body {
   #charityWaterLogo {
     display: block;
     position: fixed;
-    bottom: 25px;
+    bottom: 8px;
     left: 50%;
     transform: translateX(-50%);
-    width: 200px;
+    width: 120px;
     opacity: 1;
     pointer-events: none;
     z-index: 7;
