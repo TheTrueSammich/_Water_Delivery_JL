@@ -631,8 +631,12 @@ function getMobileBumpers() {
 }
 
 function getActiveMobileBumperLayout() {
-  if (unlockedLevel < 3) return mobileBumperLayout;
-  return mobileBumperLayout.slice(0, Math.max(0, mobileBumperLayout.length - MOBILE_LEVEL3_BUMPER_REDUCTION));
+  let layout = mobileBumperLayout;
+  if (window.innerWidth < 400 || window.innerHeight < 400) {
+    layout = layout.slice(0, Math.max(0, layout.length - 4));
+  }
+  if (unlockedLevel < 3) return layout;
+  return layout.slice(0, Math.max(0, layout.length - MOBILE_LEVEL3_BUMPER_REDUCTION));
 }
 
 function getMobileMegaBouncies() {

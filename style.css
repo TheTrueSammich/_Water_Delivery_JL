@@ -1,10 +1,77 @@
+@media (max-width: 340px) {
+  #startMenuInner {
+    padding: 6px 1vw;
+  }
+  #startMenuTitle {
+    font-size: 15px;
+  }
+  #startMenuTagline {
+    font-size: 11px;
+  }
+  .startMenuHowTo {
+    font-size: 10px;
+  }
+  #startMenuPipeGuide {
+    font-size: 9px;
+  }
+  #startMenuGoal {
+    font-size: 10px;
+  }
+  #startMenuPlayBtn {
+    font-size: 11px;
+    padding: 7px 8px;
+  }
+  #startMenuCharityLogo {
+    width: 90px;
+    max-width: 98vw;
+    margin: 18px auto 10px auto;
+  }
+}
+@media (max-width: 600px) {
+  #startMenuInner {
+    padding: 12px 4vw;
+  }
+  #startMenuTitle {
+    font-size: 22px;
+  }
+  #startMenuTagline {
+    font-size: 14px;
+  }
+  .startMenuHowTo {
+    font-size: 13px;
+  }
+  #startMenuPipeGuide {
+    font-size: 12px;
+  }
+  #startMenuGoal {
+    font-size: 14px;
+  }
+  #startMenuPlayBtn {
+    font-size: 15px;
+    padding: 10px 18px;
+  }
+}
 /* Large logo for start screen */
 #startMenuCharityLogo {
   display: block;
   margin: 32px auto 18px auto;
-  width: 340px;
-  max-width: 90vw;
+  width: 320px;
+  max-width: 95vw;
   opacity: 1;
+}
+
+@media (max-width: 600px) {
+  #startMenuCharityLogo {
+    width: 180px;
+    max-width: 80vw;
+  }
+}
+
+@media (max-width: 400px) {
+  #startMenuCharityLogo {
+    width: 120px;
+    max-width: 90vw;
+  }
 }
 * {
   margin: 0;
