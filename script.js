@@ -158,6 +158,7 @@ let gameStarted = false;
 let restartBtn = { x: 0, y: 0, w: 0, h: 0 };
 let finishBtn = { x: 0, y: 0, w: 0, h: 0 };
 let finishSummaryBtn = { x: 0, y: 0, w: 0, h: 0 };
+let liveEndGameBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
 let finishSummaryActive = false;
 let finishSummaryPeopleHelped = 0;
 let resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
@@ -305,19 +306,20 @@ function maybePlayBumpSfx() {
   playSfx('bump');
 }
 
-function spawnConfettiBurst(x, y, count) {
-  const colors = ['#77A8BB', '#69DC69', '#FFC907', '#BF6C46', '#ffffff'];
+function spawnConfettiBurst(x, y, count, colors) {
+  const defaultColors = ['#77A8BB', '#69DC69', '#FFC907', '#BF6C46', '#ffffff'];
+  const palette = colors || defaultColors;
   for (let i = 0; i < count; i++) {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 2 + Math.random() * 6;
+    const speed = 2.5 + Math.random() * 8;
     confettiPieces.push({
       x,
       y,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 3,
-      size: 4 + Math.random() * 5,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      life: 70 + Math.random() * 40,
+      vy: Math.sin(angle) * speed - 4,
+      size: 9 + Math.random() * 11,
+      color: palette[Math.floor(Math.random() * palette.length)],
+      life: 160 + Math.random() * 90,
       rot: Math.random() * Math.PI,
       spin: (Math.random() - 0.5) * 0.35,
     });
@@ -355,7 +357,7 @@ function drawConfetti() {
 
   ctx.save();
   confettiPieces.forEach((p) => {
-    const alpha = Math.max(0, Math.min(1, p.life / 80));
+    const alpha = Math.max(0, Math.min(1, p.life / 160));
     ctx.globalAlpha = alpha;
     ctx.translate(p.x, p.y);
     ctx.rotate(p.rot);
@@ -397,7 +399,7 @@ function getLevelInstruction(level) {
     return 'Mega bouncy orbs unlocked. Use them to redirect the ball into high-value pipes.';
   }
   if (level === 4) {
-    return 'Congratulations! You finished the game. Keep playing with the added modifiers to earn a high score.';
+    return 'Congratulations! You reached the final level! Rusted bumpers give -1, and filtering blue bumpers give +3! Try to get a high score and share it with your friends!';
   }
   return `Stage ${level}: Keep scoring to unlock the next stage.`;
 }
@@ -455,7 +457,13 @@ function showFinishSummary() {
   startMissionConfetti();
   finishSummaryPeopleHelped = getSafeScore();
   finishSummaryActive = true;
-  finishBtn = { x: 0, y: 0, w: 0, h: 0 };
+ 
+
+function triggerEndGame() {
+  gameOver = true;
+  showHint = false;
+  showFinishSummary();
+} finishBtn = { x: 0, y: 0, w: 0, h: 0 };
 }
 
 function restartGame() {
@@ -481,6 +489,7 @@ function restartGame() {
   showHint = true;
   finishBtn = { x: 0, y: 0, w: 0, h: 0 };
   finishSummaryBtn = { x: 0, y: 0, w: 0, h: 0 };
+  liveEndGameBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   resetBallBtn = { x: 0, y: 0, w: 0, h: 0, visible: false };
   resetBird();
   resetMobileDropBall();
@@ -547,8 +556,8 @@ function getMobilePipeLabelText(color) {
   if (color === '#FFC907') return '+5';
   if (color === '#BF6C46') {
     if (unlockedLevel >= 4) return '-8';
-    if (unlockedLevel >= 3) return '-4';
-    return '-2';
+    if (unlockedLevel >= 3) return '-5';
+    return '-3';
   }
   if (color === '#69DC69') return '+3';
   return '';
@@ -1032,6 +1041,11 @@ function syncMobileHud() {
   }
 
   if (mobileMegaBouncyEl) {
+
+  const mobileEndGameBtnEl = document.getElementById('mobileEndGameBtn');
+  if (mobileEndGameBtnEl) {
+    mobileEndGameBtnEl.style.display = (isMobileViewport() && unlockedLevel >= 4 && !gameOver) ? 'inline-flex' : 'none';
+  }
     mobileMegaBouncyEl.style.display = isMobileViewport() && level >= 3 ? 'block' : 'none';
   }
 
@@ -1418,14 +1432,55 @@ function getPipeReward(color) {
   if (color === '#FFC907') return 5;
   if (color === '#BF6C46') {
     if (unlockedLevel >= 4) return -8;
-    if (unlockedLevel >= 3) return -4;
-    return -2;
+    if (unlockedLevel >= 3) return -5;
+    return -3;
   }
   if (color === '#69DC69') return 3;
   return 0;
 }
 
-function applyPipeOutcome(color) {
+function spawnDomConfetti(x, y, count, colors) {
+  const container = document.getElementById('confettiContainer');
+  if (!container) return;
+  const defaultColors = ['#77A8BB', '#69DC69', '#FFC907', '#ffffff', '#ff88d0', '#ffe066', '#a8f0c6'];
+  const palette = colors || defaultColors;
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('div');
+    el.className = 'confettiParticle';
+    const angle = Math.random() * Math.PI * 2;
+    const dist  = 100 + Math.random() * 220;
+    const dx    = Math.cos(angle) * dist;
+    const dy    = Math.sin(angle) * dist - 140;
+    const dur   = 1400 + Math.random() * 900;
+    const rot   = Math.random() * 800 - 400;
+    const sx    = Math.random() < 0.5 ? -1 : 1;
+    el.style.left = `${x}px`;
+    el.style.top  = `${y}px`;
+    el.style.background = palette[Math.floor(Math.random() * palette.length)];
+    el.style.setProperty('--dx', `${dx}px`);
+    el.style.setProperty('--dy', `${dy}px`);
+    el.style.setProperty('--rot', `${rot}deg`);
+    el.style.setProperty('--sx', `${sx}`);
+    el.style.animationDuration = `${dur}ms`;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), dur + 60);
+  }
+}
+
+function triggerPipeConfetti(color, x, y) {
+  if (color !== '#FFC907' && color !== '#69DC69') return;
+  const isGold = color === '#FFC907';
+  const palette = isGold
+    ? ['#FFD700', '#FFC107', '#FFB300', '#FFEC6E', '#FFF4B2', '#E6AC00', '#ffffff']
+    : null;
+  if (isMobileViewport()) {
+    spawnDomConfetti(x, y, 48, palette);
+  } else {
+    spawnConfettiBurst(x, y, 48, palette);
+  }
+}
+
+function applyPipeOutcome(color, confettiX, confettiY) {
   const reward = getPipeReward(color);
   const adjustedReward = reward + activeBumperModifier;
   playPipeSfx(color, adjustedReward);
@@ -1446,6 +1501,10 @@ function applyPipeOutcome(color) {
   while (score >= nextWaterBonusAt) {
     waterCount += 1;
     nextWaterBonusAt += 8;
+  }
+
+  if (confettiX !== undefined && confettiY !== undefined) {
+    triggerPipeConfetti(color, confettiX, confettiY);
   }
 
   activeBumperModifier = 0;
@@ -1519,9 +1578,9 @@ function drawPipes() {
       if (unlockedLevel >= 4) {
         ctx.fillText('-8', x + PIPE_W / 2, y + h / 2);
       } else if (unlockedLevel >= 3) {
-        ctx.fillText('-4', x + PIPE_W / 2, y + h / 2);
+        ctx.fillText('-5', x + PIPE_W / 2, y + h / 2);
       } else {
-        ctx.fillText('-2', x + PIPE_W / 2, y + h / 2);
+        ctx.fillText('-3', x + PIPE_W / 2, y + h / 2);
       }
       ctx.restore();
     } else if (color === '#69DC69') {
@@ -2045,20 +2104,7 @@ function drawGameOver() {
   ctx.font = 'bold 28px Arial, sans-serif';
   ctx.fillText('Restart', canvas.width / 2, btnY + btnH / 2 + 1);
 
-  const finishBtnY = btnY + btnH + 12;
-  finishBtn = { x: btnX, y: finishBtnY, w: btnW, h: btnH };
-
-  ctx.fillStyle = '#1f5d1f';
-  drawRoundedRect(btnX, finishBtnY, btnW, btnH, 12);
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.24)';
-  drawRoundedRect(btnX + 4, finishBtnY + 4, btnW - 8, 12, 8);
-  ctx.fill();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 26px Arial, sans-serif';
-  ctx.fillText('Finish', canvas.width / 2, finishBtnY + btnH / 2 + 1);
+  finishBtn = { x: 0, y: 0, w: 0, h: 0 };
   ctx.restore();
 }
 
@@ -2092,6 +2138,40 @@ function drawResetBallButton() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText('Reset Ball', btnX + btnW / 2, btnY + btnH / 2 + 1);
+  ctx.restore();
+}
+
+function drawLiveEndGameButton() {
+  if (isMobileViewport() || gameOver || unlockedLevel < 4) {
+    liveEndGameBtn.visible = false;
+    return;
+  }
+
+  const btnW = 140;
+  const btnH = 38;
+  const btnX = 16;
+  const btnY = 168;
+  liveEndGameBtn = { x: btnX, y: btnY, w: btnW, h: btnH, visible: true };
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(31, 93, 31, 0.92)';
+  drawRoundedRect(btnX, btnY, btnW, btnH, 10);
+  ctx.fill();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  drawRoundedRect(btnX + 3, btnY + 3, btnW - 6, 9, 7);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 215, 0, 0.55)';
+  ctx.lineWidth = 1.5;
+  drawRoundedRect(btnX, btnY, btnW, btnH, 10);
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 17px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('End Game', btnX + btnW / 2, btnY + btnH / 2 + 1);
   ctx.restore();
 }
 
@@ -2484,7 +2564,9 @@ function handlePipeScoring() {
     if (!insidePipe) continue;
 
     const color = layout.colors[i];
-    applyPipeOutcome(color);
+    const pipeCX = layout.startX + i * (PIPE_W + layout.evenGap) + PIPE_W * 0.5;
+    const pipeCY = gY() - PIPE_H * 0.5;
+    applyPipeOutcome(color, pipeCX, pipeCY);
     randomizeDesktopPipeOrder();
     scoredThisShot = true;
     lockedPipeIndex = i;
@@ -2689,7 +2771,7 @@ function updateMobileDropPhysics() {
     );
 
     if (!scoredThisShot) {
-      applyPipeOutcome(pipeAtTop.color);
+      applyPipeOutcome(pipeAtTop.color, mobileDrop.x, mobileDrop.y);
       randomizeMobilePipeOrder();
       scoredThisShot = true;
     }
@@ -2847,16 +2929,8 @@ function onDown(e) {
       p.y >= restartBtn.y &&
       p.y <= restartBtn.y + restartBtn.h
     );
-    const insideFinish = (
-      p.x >= finishBtn.x &&
-      p.x <= finishBtn.x + finishBtn.w &&
-      p.y >= finishBtn.y &&
-      p.y <= finishBtn.y + finishBtn.h
-    );
     if (insideRestart) {
       restartGame();
-    } else if (insideFinish) {
-      showFinishSummary();
     }
     return;
   }
@@ -2870,6 +2944,19 @@ function onDown(e) {
     );
     if (insideResetBall) {
       resetBird();
+      return;
+    }
+  }
+
+  if (liveEndGameBtn.visible) {
+    const insideEndGame = (
+      p.x >= liveEndGameBtn.x &&
+      p.x <= liveEndGameBtn.x + liveEndGameBtn.w &&
+      p.y >= liveEndGameBtn.y &&
+      p.y <= liveEndGameBtn.y + liveEndGameBtn.h
+    );
+    if (insideEndGame) {
+      triggerEndGame();
       return;
     }
   }
@@ -2989,6 +3076,14 @@ function onMobilePointerMove(e) {
   mobileDrop.x = Math.max(MOBILE_BALL_R, Math.min(window.innerWidth - MOBILE_BALL_R, p.x));
   mobileDrop.y = Math.max(minY, Math.min(maxY, p.y));
   renderMobileDropBall();
+}
+
+const mobileEndGameBtnEl = document.getElementById('mobileEndGameBtn');
+if (mobileEndGameBtnEl) {
+  mobileEndGameBtnEl.addEventListener('click', () => {
+    if (!isMobileViewport()) return;
+    triggerEndGame();
+  });
 }
 
 function onMobilePointerUp(e) {
