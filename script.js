@@ -125,6 +125,9 @@ const DESKTOP_MEGA_BOUNCY_R = 44;
 const canImage = new Image();
 canImage.src = 'can.jpg';
 
+const charityWaterImage = new Image();
+charityWaterImage.src = 'CharityWater.png';
+
 // --- Layout helpers (recalculate on resize) ---
 function gY()      { return canvas.height - GROUND_H; }
 function platTop() { return gY() - PLAT_H; }
@@ -399,7 +402,7 @@ function getLevelInstruction(level) {
     return 'Mega bouncy orbs unlocked. Use them to redirect the ball into high-value pipes.';
   }
   if (level === 4) {
-    return 'Congratulations! You reached the final level! Rusted bumpers give -1, and filtering blue bumpers give +3! Try to get a high score and share it with your friends!';
+    return 'Congratulations! You reached the final level! Rusted bumpers give -1, and filtering blue bumpers give +3! Try to get a high score and share it with your friends! You can also end the game, if you wish.';
   }
   return `Stage ${level}: Keep scoring to unlock the next stage.`;
 }
@@ -1145,6 +1148,21 @@ function drawPlatform() {
       ctx.lineTo(vx, Math.min(rowY + brickH, py + totalH));
       ctx.stroke();
     }
+  }
+
+  // Charity: water logo centered below the platform body
+  if (charityWaterImage.complete && charityWaterImage.naturalWidth > 0) {
+    const maxW = PLAT_W * 0.78;
+    const maxH = 200;
+    const scale = Math.min(maxW / charityWaterImage.naturalWidth, maxH / charityWaterImage.naturalHeight);
+    const drawW = charityWaterImage.naturalWidth * scale;
+    const drawH = charityWaterImage.naturalHeight * scale;
+    const logoX = PLAT_X + PLAT_W / 2;
+    const logoY = gY() - drawH; // sits just above the ground line, at the base of the platform
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    ctx.drawImage(charityWaterImage, logoX - drawW / 2, logoY, drawW, drawH);
+    ctx.restore();
   }
 }
 

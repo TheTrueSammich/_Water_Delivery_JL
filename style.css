@@ -45,6 +45,10 @@ body {
   overflow: hidden;
 }
 
+#charityWaterLogo {
+  display: none;
+}
+
 .confettiParticle {
   position: absolute;
   width: 16px;
@@ -437,6 +441,17 @@ body {
 
   #mobileEndGameBtn:active {
     transform: translateY(1px);
+  }
+
+  #charityWaterLogo {
+    display: block;
+    position: fixed;
+    bottom: calc(22vh + 14px);
+    right: 10px;
+    width: 70px;
+    opacity: 0.8;
+    pointer-events: none;
+    z-index: 3;
   }
 
   #mobileNextLevelWrap {
