@@ -2074,11 +2074,9 @@ function drawGameOver() {
     ctx.fillText('Mission Complete', canvas.width / 2, canvas.height / 2 - 64);
     ctx.font = 'bold 24px Arial, sans-serif';
     ctx.fillText(`People helped: ${finishSummaryPeopleHelped}`, canvas.width / 2, canvas.height / 2 - 18);
-    ctx.font = 'bold 16px Arial, sans-serif';
-    ctx.fillText('In support of charity: water, clean water improves health and dignity.', canvas.width / 2, canvas.height / 2 + 170);
-    ctx.fillText('It also helps children stay in school and communities build stable futures.', canvas.width / 2, canvas.height / 2 + 194);
-    ctx.font = 'bold 18px Arial, sans-serif';
-    ctx.fillText('Thank you for playing and supporting clean water awareness.', canvas.width / 2, canvas.height / 2 + 18);
+    ctx.fillText('In support of charity: water, clean water improves health and dignity.', canvas.width / 2, canvas.height / 2);
+    ctx.fillText('It also helps children stay in school and communities build stable futures.', canvas.width / 2, canvas.height / 2 + 18);
+    ctx.fillText('Thank you for playing and supporting clean water awareness.', canvas.width / 2, canvas.height / 2 + 36);
 
     const btnW = 260;
     const btnH = 56;
