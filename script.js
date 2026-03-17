@@ -466,7 +466,6 @@ function triggerEndGame() {
   gameOver = true;
   showHint = false;
   showFinishSummary();
-} finishBtn = { x: 0, y: 0, w: 0, h: 0 };
 }
 
 function restartGame() {
