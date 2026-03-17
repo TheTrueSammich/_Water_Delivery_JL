@@ -126,7 +126,7 @@ const canImage = new Image();
 canImage.src = 'can.jpg';
 
 const charityWaterImage = new Image();
-charityWaterImage.src = 'CharityWater.png';
+charityWaterImage.src = 'CharityWaterJpg.jpg';
 
 // --- Layout helpers (recalculate on resize) ---
 function gY()      { return canvas.height - GROUND_H; }
@@ -1049,6 +1049,11 @@ function syncMobileHud() {
   if (mobileEndGameBtnEl) {
     mobileEndGameBtnEl.style.display = (isMobileViewport() && unlockedLevel >= 4 && !gameOver) ? 'inline-flex' : 'none';
   }
+
+  const desktopEndGameBtnEl = document.getElementById('desktopEndGameBtn');
+  if (desktopEndGameBtnEl) {
+    desktopEndGameBtnEl.style.display = (!isMobileViewport() && unlockedLevel >= 4 && !gameOver) ? 'block' : 'none';
+  }
     mobileMegaBouncyEl.style.display = isMobileViewport() && level >= 3 ? 'block' : 'none';
   }
 
@@ -1150,15 +1155,15 @@ function drawPlatform() {
     }
   }
 
-  // Charity: water logo centered below the platform body
+  // Charity: water logo centered below the slingshot
   if (charityWaterImage.complete && charityWaterImage.naturalWidth > 0) {
-    const maxW = PLAT_W * 0.78;
-    const maxH = 200;
+    const maxW = 220;
+    const maxH = PLAT_H * 0.75;
     const scale = Math.min(maxW / charityWaterImage.naturalWidth, maxH / charityWaterImage.naturalHeight);
     const drawW = charityWaterImage.naturalWidth * scale;
     const drawH = charityWaterImage.naturalHeight * scale;
-    const logoX = PLAT_X + PLAT_W / 2;
-    const logoY = gY() - drawH; // sits just above the ground line, at the base of the platform
+    const logoX = SLING_X;
+    const logoY = platTop() + (PLAT_H - drawH) / 2;
     ctx.save();
     ctx.globalAlpha = 0.92;
     ctx.drawImage(charityWaterImage, logoX - drawW / 2, logoY, drawW, drawH);
@@ -2160,37 +2165,8 @@ function drawResetBallButton() {
 }
 
 function drawLiveEndGameButton() {
-  if (isMobileViewport() || gameOver || unlockedLevel < 4) {
-    liveEndGameBtn.visible = false;
-    return;
-  }
-
-  const btnW = 140;
-  const btnH = 38;
-  const btnX = 16;
-  const btnY = 168;
-  liveEndGameBtn = { x: btnX, y: btnY, w: btnW, h: btnH, visible: true };
-
-  ctx.save();
-  ctx.fillStyle = 'rgba(31, 93, 31, 0.92)';
-  drawRoundedRect(btnX, btnY, btnW, btnH, 10);
-  ctx.fill();
-
-  ctx.fillStyle = 'rgba(255,255,255,0.22)';
-  drawRoundedRect(btnX + 3, btnY + 3, btnW - 6, 9, 7);
-  ctx.fill();
-
-  ctx.strokeStyle = 'rgba(255, 215, 0, 0.55)';
-  ctx.lineWidth = 1.5;
-  drawRoundedRect(btnX, btnY, btnW, btnH, 10);
-  ctx.stroke();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 17px Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('End Game', btnX + btnW / 2, btnY + btnH / 2 + 1);
-  ctx.restore();
+  // replaced by #desktopEndGameBtn HTML button
+  liveEndGameBtn.visible = false;
 }
 
 function handlePlatformCollision() {
@@ -3100,6 +3076,14 @@ const mobileEndGameBtnEl = document.getElementById('mobileEndGameBtn');
 if (mobileEndGameBtnEl) {
   mobileEndGameBtnEl.addEventListener('click', () => {
     if (!isMobileViewport()) return;
+    triggerEndGame();
+  });
+}
+
+const desktopEndGameBtnEl = document.getElementById('desktopEndGameBtn');
+if (desktopEndGameBtnEl) {
+  desktopEndGameBtnEl.addEventListener('click', () => {
+    if (isMobileViewport()) return;
     triggerEndGame();
   });
 }

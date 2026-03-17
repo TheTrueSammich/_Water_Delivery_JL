@@ -1,3 +1,11 @@
+/* Large logo for start screen */
+#startMenuCharityLogo {
+  display: block;
+  margin: 32px auto 18px auto;
+  width: 340px;
+  max-width: 90vw;
+  opacity: 1;
+}
 * {
   margin: 0;
   padding: 0;
@@ -25,6 +33,26 @@ body {
 }
 
 #globalResetBtn:active {
+  transform: translateY(1px);
+}
+
+#desktopEndGameBtn {
+  display: none;
+  position: fixed;
+  top: 60px;
+  right: 10px;
+  z-index: 20;
+  padding: 12px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 11px;
+  background: rgba(31, 93, 31, 0.9);
+  color: #ffffff;
+  font: 700 15px/1 Arial, sans-serif;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+}
+
+#desktopEndGameBtn:active {
   transform: translateY(1px);
 }
 
@@ -347,7 +375,7 @@ body {
     background: rgba(8, 39, 56, 0.34);
     border: 1px solid rgba(255, 255, 255, 0.35);
     color: #ffffff;
-    font: 700 14px/1.2 Arial, sans-serif;
+    font: 700 12px/1.2 Arial, sans-serif;
     z-index: 4;
   }
 
@@ -402,7 +430,7 @@ body {
 
   #mobileHudStats {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
     gap: 10px;
   }
@@ -446,12 +474,13 @@ body {
   #charityWaterLogo {
     display: block;
     position: fixed;
-    bottom: calc(22vh + 14px);
-    right: 10px;
-    width: 70px;
-    opacity: 0.8;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    opacity: 1;
     pointer-events: none;
-    z-index: 3;
+    z-index: 7;
   }
 
   #mobileNextLevelWrap {

@@ -8,6 +8,7 @@
 </head>
 <body>
   <button id="globalResetBtn" type="button">Restart</button>
+  <button id="desktopEndGameBtn" type="button">End Game</button>
   <div id="levelOverlay" aria-live="polite" aria-atomic="true"></div>
   <div id="mobileHud" aria-live="polite" aria-label="Game status">
     <div id="mobileHudStats">
@@ -43,7 +44,7 @@
   </div>
   <div id="mobilePipes" aria-hidden="true"><div id="mobilePipe1Label">Extra Water</div><div id="mobilePipe2Label">+5</div><div id="mobilePipe3Label">-3</div><div id="mobilePipe4Label">+3</div></div>
   <div id="confettiContainer" aria-hidden="true"></div>
-  <img id="charityWaterLogo" src="CharityWater.png" alt="charity: water" />
+  <img id="charityWaterLogo" src="CharityWaterJpg.jpg" alt="charity: water" />
   <div id="startMenu">
     <div id="startMenuInner">
       <div id="startMenuDrop">💧</div>
@@ -62,7 +63,8 @@
         <span>Your <strong>water</strong> is precious &mdash; in the spirit of charity: water, every drop contributes to better health, school attendance, and more time for families to build their future.</span>
       </div>
       <p id="startMenuGoal">Reach <strong>12 people helped</strong> to unlock Stage 2!</p>
-      <button id="startMenuPlayBtn" type="button">Start Delivering</button>
+        <button id="startMenuPlayBtn" type="button">Start Delivering</button>
+        <img id="startMenuCharityLogo" src="CharityWaterJpg.jpg" alt="charity: water" />
     </div>
   </div>
   <canvas id="gameCanvas"></canvas>
